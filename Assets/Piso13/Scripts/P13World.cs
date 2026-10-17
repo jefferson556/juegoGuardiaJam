@@ -215,11 +215,8 @@ namespace Piso13
             RenderSettings.fogColor = new Color(.015f, .022f, .03f);
             RenderSettings.fogMode = FogMode.Exponential;
             RenderSettings.fogDensity = .015f;
-            foreach (var clue in Data.narrative)
-            {
-                var marker = Box("Pista_" + clue.id, clue.position, new Vector3(.19f, .025f, .24f), new Color(.45f, .40f, .27f), Root);
-                marker.transform.rotation = Quaternion.Euler(0, clue.room * 17, 0);
-            }
+            // Pistas visuales omitidas según solicitud
+
 
             // Original windows: render-only rain streaks, no new collision or passage.
             foreach (var p in new[]{P13Rules.RK(-7.68f, 1.85f, -5.2f), P13Rules.RK(-7.68f, 1.85f, -.4f), P13Rules.RK(24, 1.75f, -7.3f), P13Rules.RK(36, 1.75f, -7.3f), P13Rules.RK(24, 1.75f, -11.5f), P13Rules.RK(36, 1.75f, -11.5f), P13Rules.RK(24, 1.75f, 2.4f), P13Rules.RK(36, 1.75f, -2.6f)})
