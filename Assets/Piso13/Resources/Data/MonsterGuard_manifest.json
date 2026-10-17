@@ -1,0 +1,192 @@
+{
+  "character": "MonsterGuard",
+  "source": "/Users/mac/Downloads/Guardia Monstruoso.blend",
+  "height": 2.22,
+  "sourceTriangles": 499754,
+  "gameTriangles": 59970,
+  "vertices": 29939,
+  "bones": [
+    "root",
+    "pelvis",
+    "spine",
+    "chest",
+    "neck",
+    "head",
+    "clavicle.L",
+    "upper_arm.L",
+    "forearm.L",
+    "hand.L",
+    "thumb1.L",
+    "thumb2.L",
+    "index1.L",
+    "index2.L",
+    "middle1.L",
+    "middle2.L",
+    "ring1.L",
+    "ring2.L",
+    "little1.L",
+    "little2.L",
+    "clavicle.R",
+    "upper_arm.R",
+    "forearm.R",
+    "hand.R",
+    "thumb1.R",
+    "thumb2.R",
+    "index1.R",
+    "index2.R",
+    "middle1.R",
+    "middle2.R",
+    "ring1.R",
+    "ring2.R",
+    "little1.R",
+    "little2.R",
+    "thigh.L",
+    "calf.L",
+    "foot.L",
+    "toe.L",
+    "thigh.R",
+    "calf.R",
+    "foot.R",
+    "toe.R"
+  ],
+  "controls": [
+    "foot_IK.L",
+    "hand_IK.L",
+    "knee_pole.L",
+    "foot_IK.R",
+    "hand_IK.R",
+    "knee_pole.R"
+  ],
+  "weightedVertices": 29939,
+  "weightSumMin": 0.9999999552965164,
+  "weightSumMax": 1.0000000447034836,
+  "clips": [
+    {
+      "name": "idle",
+      "startFrame": 0,
+      "endFrame": 120,
+      "fps": 30,
+      "loop": true,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "patrol",
+      "startFrame": 121,
+      "endFrame": 181,
+      "fps": 30,
+      "loop": true,
+      "referenceSpeed": 0.5333333
+    },
+    {
+      "name": "walk",
+      "startFrame": 182,
+      "endFrame": 224,
+      "fps": 30,
+      "loop": true,
+      "referenceSpeed": 1.0238095
+    },
+    {
+      "name": "turn_left",
+      "startFrame": 225,
+      "endFrame": 261,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "turn_right",
+      "startFrame": 262,
+      "endFrame": 298,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "investigate",
+      "startFrame": 299,
+      "endFrame": 389,
+      "fps": 30,
+      "loop": true,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "alert",
+      "startFrame": 390,
+      "endFrame": 414,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "run",
+      "startFrame": 415,
+      "endFrame": 441,
+      "fps": 30,
+      "loop": true,
+      "referenceSpeed": 2.2692308
+    },
+    {
+      "name": "stop",
+      "startFrame": 442,
+      "endFrame": 466,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "wall_brace_left",
+      "startFrame": 467,
+      "endFrame": 494,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "wall_brace_right",
+      "startFrame": 495,
+      "endFrame": 522,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "grab",
+      "startFrame": 523,
+      "endFrame": 547,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "lift",
+      "startFrame": 548,
+      "endFrame": 584,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "kill",
+      "startFrame": 585,
+      "endFrame": 609,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "victory",
+      "startFrame": 610,
+      "endFrame": 640,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    }
+  ],
+  "rootMotion": false,
+  "textures": {
+    "baseColor": "textures/baseColor.png",
+    "normal": "textures/normal.png",
+    "roughness": "textures/roughness.png",
+    "metallic": "textures/metallic.png"
+  }
+}

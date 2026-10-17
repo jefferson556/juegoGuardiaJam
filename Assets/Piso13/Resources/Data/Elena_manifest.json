@@ -1,0 +1,160 @@
+{
+  "character": "Elena",
+  "source": "/Users/mac/Downloads/recepcionista.blend",
+  "height": 1.72,
+  "sourceTriangles": 499342,
+  "gameTriangles": 39946,
+  "vertices": 19943,
+  "bones": [
+    "root",
+    "pelvis",
+    "spine",
+    "chest",
+    "neck",
+    "head",
+    "clavicle.L",
+    "upper_arm.L",
+    "forearm.L",
+    "hand.L",
+    "thumb1.L",
+    "thumb2.L",
+    "index1.L",
+    "index2.L",
+    "middle1.L",
+    "middle2.L",
+    "ring1.L",
+    "ring2.L",
+    "little1.L",
+    "little2.L",
+    "clavicle.R",
+    "upper_arm.R",
+    "forearm.R",
+    "hand.R",
+    "thumb1.R",
+    "thumb2.R",
+    "index1.R",
+    "index2.R",
+    "middle1.R",
+    "middle2.R",
+    "ring1.R",
+    "ring2.R",
+    "little1.R",
+    "little2.R",
+    "thigh.L",
+    "calf.L",
+    "foot.L",
+    "toe.L",
+    "thigh.R",
+    "calf.R",
+    "foot.R",
+    "toe.R"
+  ],
+  "controls": [
+    "foot_IK.L",
+    "hand_IK.L",
+    "knee_pole.L",
+    "foot_IK.R",
+    "hand_IK.R",
+    "knee_pole.R"
+  ],
+  "weightedVertices": 19943,
+  "weightSumMin": 0.9999999552965164,
+  "weightSumMax": 1.0000000521540642,
+  "clips": [
+    {
+      "name": "idle",
+      "startFrame": 0,
+      "endFrame": 120,
+      "fps": 30,
+      "loop": true,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "seated",
+      "startFrame": 121,
+      "endFrame": 241,
+      "fps": 30,
+      "loop": true,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "breathing",
+      "startFrame": 242,
+      "endFrame": 362,
+      "fps": 30,
+      "loop": true,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "head_tilt",
+      "startFrame": 363,
+      "endFrame": 453,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "head_turn",
+      "startFrame": 454,
+      "endFrame": 574,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "body_turn",
+      "startFrame": 575,
+      "endFrame": 665,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "step_forward",
+      "startFrame": 666,
+      "endFrame": 756,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0.16
+    },
+    {
+      "name": "seated_look",
+      "startFrame": 757,
+      "endFrame": 877,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "whisper",
+      "startFrame": 878,
+      "endFrame": 998,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "apparition",
+      "startFrame": 999,
+      "endFrame": 1119,
+      "fps": 30,
+      "loop": true,
+      "referenceSpeed": 0
+    },
+    {
+      "name": "disappear_ready",
+      "startFrame": 1120,
+      "endFrame": 1210,
+      "fps": 30,
+      "loop": false,
+      "referenceSpeed": 0
+    }
+  ],
+  "rootMotion": false,
+  "textures": {
+    "baseColor": "textures/baseColor.png",
+    "normal": "textures/normal.png",
+    "roughness": "textures/roughness.png",
+    "metallic": "textures/metallic.png"
+  }
+}

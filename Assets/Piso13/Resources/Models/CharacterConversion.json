@@ -1,0 +1,104 @@
+[
+  {
+    "name": "MonsterGuard",
+    "source": "/Users/mac/Desktop/Piso 13/CharacterSources/MonsterGuard_Rig.blend",
+    "meshes": 1,
+    "armatures": 1,
+    "vertices": 29939,
+    "blenderBounds": [
+      [
+        -0.57846599817276,
+        -0.4013892412185669,
+        9.854885865934193e-05
+      ],
+      [
+        0.5925506949424744,
+        0.29051944613456726,
+        2.204664945602417
+      ]
+    ],
+    "unityExpectedBounds": [
+      [
+        -0.57846599817276,
+        9.854885865934193e-05,
+        -0.4013892412185669
+      ],
+      [
+        0.5925506949424744,
+        2.204664945602417,
+        0.29051944613456726
+      ]
+    ],
+    "actions": [
+      "alert",
+      "grab",
+      "idle",
+      "investigate",
+      "kill",
+      "lift",
+      "patrol",
+      "run",
+      "stop",
+      "turn_left",
+      "turn_right",
+      "victory",
+      "walk",
+      "wall_brace_left",
+      "wall_brace_right"
+    ],
+    "frames": [
+      0,
+      120
+    ],
+    "fps": 30
+  },
+  {
+    "name": "Elena",
+    "source": "/Users/mac/Desktop/Piso 13/CharacterSources/Elena_Rig.blend",
+    "meshes": 1,
+    "armatures": 1,
+    "vertices": 19943,
+    "blenderBounds": [
+      [
+        -0.3088231682777405,
+        -0.2832035422325134,
+        -0.00011606754560489208
+      ],
+      [
+        0.38695627450942993,
+        0.2079763114452362,
+        1.7050031423568726
+      ]
+    ],
+    "unityExpectedBounds": [
+      [
+        -0.3088231682777405,
+        -0.00011606754560489208,
+        -0.2832035422325134
+      ],
+      [
+        0.38695627450942993,
+        1.7050031423568726,
+        0.2079763114452362
+      ]
+    ],
+    "actions": [
+      "apparition",
+      "body_turn",
+      "breathing",
+      "disappear_ready",
+      "head_tilt",
+      "head_turn",
+      "idle",
+      "seated",
+      "seated_look",
+      "step_forward",
+      "whisper"
+    ],
+    "frames": [
+      0,
+      120
+    ],
+    "fps": 30
+  }
+]
