@@ -13,6 +13,16 @@ namespace Piso13.Editor
     public sealed class P13Importer : AssetPostprocessor
     {
         bool Ours => assetPath.StartsWith("Assets/Piso13/Resources/");
+
+        // Shader.Find misses package shaders during a fresh import (new clone, empty Library),
+        // so the importer loads URP Lit by path and declares it as a dependency.
+        const string LitShaderPath = "Packages/com.unity.render-pipelines.universal/Shaders/Lit.shader";
+
+        // Bump this to force Unity to reimport the Piso13 assets with the current rules.
+        // v1: materials switched from built-in Standard to URP Lit.
+        // v2: URP Lit loaded by path instead of Shader.Find.
+        public override uint GetVersion() => 2;
+
         void OnPreprocessModel()
         {
             if (!Ours)
@@ -122,8 +132,15 @@ namespace Piso13.Editor
             if (definition == null)
                 return null;
             string folder = Path.GetDirectoryName(assetPath).Replace('\\', '/') + "/Textures/";
-            var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            var result = new Material(shader)
+            context.DependsOnArtifact(LitShaderPath);
+            var lit = AssetDatabase.LoadAssetAtPath<Shader>(LitShaderPath);
+            if (!lit)
+            {
+                context.LogImportError("Falta el shader URP Lit en " + LitShaderPath);
+                return null;
+            }
+
+            var result = new Material(lit)
             {name = material.name};
             var c = definition.color;
             var col = new Color(c[0], c[1], c[2], c[3]);
@@ -155,23 +172,31 @@ namespace Piso13.Editor
             }
 
             result.SetFloat("_Metallic", definition.metallic);
-            if (result.HasProperty("_Smoothness"))
-                result.SetFloat("_Smoothness", 1 - definition.roughness);
-            if (result.HasProperty("_Glossiness"))
-                result.SetFloat("_Glossiness", 1 - definition.roughness);
+            result.SetFloat("_Smoothness", 1 - definition.roughness);
             if (!string.IsNullOrEmpty(definition.packed))
             {
                 var packed = AssetDatabase.LoadAssetAtPath<Texture2D>(folder + definition.packed);
                 if (packed)
                 {
+                    // URP Lit reads metallic from R and smoothness from A, scaled by _Smoothness.
                     result.SetTexture("_MetallicGlossMap", packed);
-                    result.EnableKeyword("_METALLICGLOSSMAP");
-                    result.SetFloat("_GlossMapScale", 1);
+                    result.EnableKeyword("_METALLICSPECGLOSSMAP");
+                    result.SetFloat("_Smoothness", 1);
                 }
+            }
+
+            // P13World turns emission on at runtime for lights and screens. URP strips shader
+            // variants no material uses, so enable it here (black) or builds lose the glow.
+            if (Emissive(material.name) || (renderer && Emissive(renderer.name)))
+            {
+                result.EnableKeyword("_EMISSION");
+                result.SetColor("_EmissionColor", Color.black);
             }
 
             return result;
         }
+
+        static bool Emissive(string name) => name.Contains("Fluorescent") || name.Contains("Screen") || name.Contains("Emergency");
     }
 
     [InitializeOnLoad]
@@ -211,22 +236,8 @@ namespace Piso13.Editor
             var icon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Piso13/Resources/UI/Icon.png");
             PlayerSettings.SetIcons(NamedBuildTarget.Standalone, PlayerSettings.GetIconSizes(NamedBuildTarget.Standalone, IconKind.Any).Select(_ => icon).ToArray(), IconKind.Any);
             QualitySettings.pixelLightCount = 3;
-            // Runtime creates Standard materials; retain this shader in standalone players.
-            var graphics = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset")[0]);
-            var shaders = graphics.FindProperty("m_AlwaysIncludedShaders");
-            Action<string> ensureShader = shaderName =>
-            {
-                var s = Shader.Find(shaderName);
-                if (!s) return;
-                for (int i = 0; i < shaders.arraySize; i++)
-                    if (shaders.GetArrayElementAtIndex(i).objectReferenceValue == s)
-                        return;
-                shaders.InsertArrayElementAtIndex(shaders.arraySize);
-                shaders.GetArrayElementAtIndex(shaders.arraySize - 1).objectReferenceValue = s;
-                graphics.ApplyModifiedProperties();
-            };
-            ensureShader("Universal Render Pipeline/Lit");
-            ensureShader("Standard");
+            // URP Lit ships with the build because the imported models use it, so there is no
+            // need to force a shader into "Always Included Shaders".
 
             if (!File.Exists(ScenePath))
             {

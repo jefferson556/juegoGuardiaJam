@@ -100,7 +100,7 @@ namespace Piso13.Editor
 
                 foreach (var renderer in model.GetComponentsInChildren<Renderer>())
                     foreach (var material in renderer.sharedMaterials)
-                        Check(material && material.shader && material.shader.name != "Hidden/InternalErrorShader", "material de " + name);
+                        Check(material && material.shader && material.shader.name.StartsWith("Universal Render Pipeline/"), "material URP de " + name);
                 if (name == "MonsterGuard" || name == "Elena")
                 {
                     var expected = JsonUtility.FromJson<ClipManifest>(Resources.Load<TextAsset>("Data/" + name + "_manifest").text);

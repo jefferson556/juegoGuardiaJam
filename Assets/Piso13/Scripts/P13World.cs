@@ -82,17 +82,24 @@ namespace Piso13
             o.transform.localPosition = pos;
             o.transform.localScale = size;
             UnityEngine.Object.Destroy(o.GetComponent<Collider>());
-            var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            var m = new Material(shader);
+            var m = new Material(LitShader());
             m.color = color;
-            if (m.HasProperty("_BaseColor"))
-                m.SetColor("_BaseColor", color);
-            if (m.HasProperty("_Smoothness"))
-                m.SetFloat("_Smoothness", .2f);
-            if (m.HasProperty("_Glossiness"))
-                m.SetFloat("_Glossiness", .2f);
+            m.SetFloat("_Smoothness", .2f);
             o.GetComponent<Renderer>().sharedMaterial = m;
             return o;
+        }
+
+        // The project renders with URP; built-in "Standard" materials would show up pink.
+        public const string LitShaderName = "Universal Render Pipeline/Lit";
+        static Shader lit;
+
+        public static Shader LitShader()
+        {
+            if (!lit)
+                lit = Shader.Find(LitShaderName);
+            if (!lit)
+                throw new InvalidOperationException("Falta el shader " + LitShaderName + ". Revisa que URP esté instalado y activo.");
+            return lit;
         }
 
         public static GameObject Model(string name, Transform parent)
