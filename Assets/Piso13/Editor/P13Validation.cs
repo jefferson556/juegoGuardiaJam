@@ -108,6 +108,30 @@ namespace Piso13.Editor
                     foreach (var c in expected.clips)
                         Check(clips.Any(x => x.name == c.name && x.length > 0), name + " clip " + c.name);
                     Check(model.GetComponentInChildren<SkinnedMeshRenderer>() != null, name + " rig");
+                    // The skinned mesh must come out at character size, not a few centimetres.
+                    float height = name == "Elena" ? 1.68f : 2.22f;
+                    var characterRoot = new GameObject("P13ValidationCharacter");
+                    var baked = new Mesh();
+                    try
+                    {
+                        var character = new P13Character(name, characterRoot.transform, height);
+                        var skin = character.Visual.GetComponentInChildren<SkinnedMeshRenderer>();
+                        skin.BakeMesh(baked, true);
+                        float low = float.MaxValue, high = float.MinValue;
+                        foreach (var v in baked.vertices)
+                        {
+                            float y = skin.transform.TransformPoint(v).y;
+                            low = Mathf.Min(low, y);
+                            high = Mathf.Max(high, y);
+                        }
+
+                        Check(high - low > height * .6f && high - low < height * 1.6f, "tamaño visible de " + name);
+                    }
+                    finally
+                    {
+                        UnityEngine.Object.DestroyImmediate(baked);
+                        UnityEngine.Object.DestroyImmediate(characterRoot);
+                    }
                 }
             }
 

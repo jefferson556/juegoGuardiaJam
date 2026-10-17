@@ -21,7 +21,8 @@ namespace Piso13.Editor
         // Bump this to force Unity to reimport the Piso13 assets with the current rules.
         // v1: materials switched from built-in Standard to URP Lit.
         // v2: URP Lit loaded by path instead of Shader.Find.
-        public override uint GetVersion() => 2;
+        // v3: skinned character bounds recomputed so characters spawn at full size.
+        public override uint GetVersion() => 3;
 
         void OnPreprocessModel()
         {
@@ -40,6 +41,37 @@ namespace Piso13.Editor
             importer.animationCompression = ModelImporterAnimationCompression.Off;
             importer.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
             importer.materialLocation = ModelImporterMaterialLocation.InPrefab;
+        }
+
+        // The character FBX files (MonsterGuard, Elena) come in with SkinnedMeshRenderer bounds
+        // 100x too big: the mesh node's x100 scale gets counted twice. P13Character sizes each
+        // character from those bounds, so it shrank them to a couple of centimetres. Recompute
+        // the bounds from the mesh at its bind pose, in the root bone's space.
+        void OnPostprocessModel(GameObject root)
+        {
+            if (!Ours)
+                return;
+            foreach (var skin in root.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                var mesh = skin.sharedMesh;
+                var bones = skin.bones;
+                var space = skin.rootBone ? skin.rootBone : skin.transform;
+                if (!mesh || bones.Length == 0 || !bones[0] || mesh.bindposes.Length != bones.Length)
+                    continue;
+                var meshToSpace = space.worldToLocalMatrix * bones[0].localToWorldMatrix * mesh.bindposes[0];
+                skin.localBounds = Transform(mesh.bounds, meshToSpace);
+            }
+        }
+
+        static Bounds Transform(Bounds local, Matrix4x4 matrix)
+        {
+            var result = new Bounds(matrix.MultiplyPoint3x4(local.min), Vector3.zero);
+            for (int i = 0; i < 8; i++)
+                result.Encapsulate(matrix.MultiplyPoint3x4(new Vector3(
+                    (i & 1) == 0 ? local.min.x : local.max.x,
+                    (i & 2) == 0 ? local.min.y : local.max.y,
+                    (i & 4) == 0 ? local.min.z : local.max.z)));
+            return result;
         }
 
         void OnPreprocessAnimation()
