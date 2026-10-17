@@ -73,6 +73,7 @@ namespace Piso13.Editor
             Check(lift.phase == ElevatorMachine.Phase.Open && lift.needsService, "rescate y mantenimiento");
             foreach (string audio in new[]{"P13_Menu_Ulrich", "P13_UI_Hover", "P13_UI_Confirm", "P13_Player_Recovery", "P13_Door_Open", "P13_Door_Closing", "P13_Door_Latch"}.Concat(Enumerable.Range(0, 4).Select(i => "P13_Rain_" + i)).Concat(Enumerable.Range(0, 6).Select(i => "P13_PlayerStep_" + i)).Concat(Enumerable.Range(0, 3).Select(i => "P13_Thunder_" + i)))
                 Check(Resources.Load<AudioClip>("Audio/" + audio) != null, "audio " + audio);
+            var library = JsonUtility.FromJson<P13Importer.MaterialLibrary>(File.ReadAllText(P13Importer.MaterialLibraryPath));
             foreach (string name in new[]{"Piso13_CAM01", "CAM02_Recepcion", "CAM03_Ascensor", "CAM04_Pasillo", "CAM05_Archivo", "CAM06_Servidores", "CAM07_Tecnica", "CAM08_Abandonada", "CAM09_Almacen", "Piso12_Administrativo", "CAM01_Puerta", "Puerta_Madera", "Piso13_HandFlashlight", "MonsterGuard", "Elena"})
             {
                 string path = "Assets/Piso13/Resources/Models/" + name + "/" + name + ".fbx";
@@ -98,9 +99,20 @@ namespace Piso13.Editor
                     UnityEngine.Object.DestroyImmediate(validationRoot);
                 }
 
+                var definitions = library.assets.FirstOrDefault(a => a.name == name)?.materials ?? new P13Importer.MaterialDefinition[0];
                 foreach (var renderer in model.GetComponentsInChildren<Renderer>())
                     foreach (var material in renderer.sharedMaterials)
+                    {
                         Check(material && material.shader && material.shader.name.StartsWith("Universal Render Pipeline/"), "material URP de " + name);
+                        // MaterialLibrary values must actually reach the imported material.
+                        var definition = definitions.FirstOrDefault(d => d.name == material.name);
+                        if (definition == null)
+                            continue;
+                        if (!string.IsNullOrEmpty(definition.albedo))
+                            Check(material.GetTexture("_BaseMap") != null, "textura de " + name + "/" + material.name);
+                        if (P13Importer.Emissive(definition.name))
+                            Check(material.IsKeywordEnabled("_EMISSION"), "emisión de " + name + "/" + material.name);
+                    }
                 if (name == "MonsterGuard" || name == "Elena")
                 {
                     var expected = JsonUtility.FromJson<ClipManifest>(Resources.Load<TextAsset>("Data/" + name + "_manifest").text);

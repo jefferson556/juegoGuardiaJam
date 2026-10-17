@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using UnityEngine;
 using UnityEditor;
+using UnityEditor.AssetImporters;
 using UnityEditor.SceneManagement;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -22,7 +23,8 @@ namespace Piso13.Editor
         // v1: materials switched from built-in Standard to URP Lit.
         // v2: URP Lit loaded by path instead of Shader.Find.
         // v3: skinned character bounds recomputed so characters spawn at full size.
-        public override uint GetVersion() => 3;
+        // v4: MaterialLibrary applied through the material description (materials now persist).
+        public override uint GetVersion() => 4;
 
         void OnPreprocessModel()
         {
@@ -39,7 +41,7 @@ namespace Piso13.Editor
             importer.importAnimation = character;
             importer.animationType = character ? ModelImporterAnimationType.Legacy : ModelImporterAnimationType.None;
             importer.animationCompression = ModelImporterAnimationCompression.Off;
-            importer.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
+            importer.materialImportMode = ModelImporterMaterialImportMode.ImportViaMaterialDescription;
             importer.materialLocation = ModelImporterMaterialLocation.InPrefab;
         }
 
@@ -153,82 +155,92 @@ namespace Piso13.Editor
             public float metallic, roughness;
         }
 
-        Material OnAssignMaterialModel(Material material, Renderer renderer)
+        public const string MaterialLibraryPath = "Assets/Piso13/Resources/Models/MaterialLibrary.json";
+
+        // Unity keeps only the materials it creates for a model; a new Material returned from
+        // OnAssignMaterialModel was rejected ("must return a persistent material") and the
+        // MaterialLibrary values were lost. So rewrite the material Unity builds from the FBX
+        // description instead. Runs after URP's own FBX preprocessor (order -980).
+        void OnPreprocessMaterialDescription(MaterialDescription description, Material material, AnimationClip[] clips)
         {
             if (!Ours)
-                return null;
-            var library = JsonUtility.FromJson<MaterialLibrary>(File.ReadAllText("Assets/Piso13/Resources/Models/MaterialLibrary.json"));
-            string name = Path.GetFileNameWithoutExtension(assetPath);
-            var asset = library.assets.FirstOrDefault(a => a.name == name);
-            var definition = asset?.materials.FirstOrDefault(m => m.name == material.name);
+                return;
+            context.DependsOnSourceAsset(MaterialLibraryPath);
+            var library = JsonUtility.FromJson<MaterialLibrary>(File.ReadAllText(MaterialLibraryPath));
+            string model = Path.GetFileNameWithoutExtension(assetPath);
+            string materialName = string.IsNullOrEmpty(description.materialName) ? material.name : description.materialName;
+            var definition = library.assets.FirstOrDefault(a => a.name == model)?.materials.FirstOrDefault(m => m.name == materialName);
             if (definition == null)
-                return null;
-            string folder = Path.GetDirectoryName(assetPath).Replace('\\', '/') + "/Textures/";
+                return;
             context.DependsOnArtifact(LitShaderPath);
             var lit = AssetDatabase.LoadAssetAtPath<Shader>(LitShaderPath);
             if (!lit)
             {
                 context.LogImportError("Falta el shader URP Lit en " + LitShaderPath);
-                return null;
+                return;
             }
 
-            var result = new Material(lit)
-            {name = material.name};
+            var built = Build(definition, lit, Path.GetDirectoryName(assetPath).Replace('\\', '/') + "/Textures/");
+            material.shader = lit;
+            material.CopyPropertiesFromMaterial(built);
+            material.shaderKeywords = built.shaderKeywords;
+            material.globalIlluminationFlags = built.globalIlluminationFlags;
+            UnityEngine.Object.DestroyImmediate(built);
+        }
+
+        Material Build(MaterialDefinition definition, Shader lit, string folder)
+        {
+            var result = new Material(lit);
             var c = definition.color;
-            var col = new Color(c[0], c[1], c[2], c[3]);
-            result.color = col;
-            if (result.HasProperty("_BaseColor"))
-                result.SetColor("_BaseColor", col);
-            if (!string.IsNullOrEmpty(definition.albedo))
+            result.SetColor("_BaseColor", new Color(c[0], c[1], c[2], c[3]));
+            var albedo = Texture(folder, definition.albedo);
+            if (albedo)
             {
-                var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(folder + definition.albedo);
-                if (texture)
-                {
-                    result.mainTexture = texture;
-                    if (result.HasProperty("_BaseMap"))
-                        result.SetTexture("_BaseMap", texture);
-                    result.color = Color.white;
-                    if (result.HasProperty("_BaseColor"))
-                        result.SetColor("_BaseColor", Color.white);
-                }
+                result.SetTexture("_BaseMap", albedo);
+                result.SetColor("_BaseColor", Color.white);
             }
 
-            if (!string.IsNullOrEmpty(definition.normal))
+            var normal = Texture(folder, definition.normal);
+            if (normal)
             {
-                var normal = AssetDatabase.LoadAssetAtPath<Texture2D>(folder + definition.normal);
-                if (normal)
-                {
-                    result.SetTexture("_BumpMap", normal);
-                    result.EnableKeyword("_NORMALMAP");
-                }
+                result.SetTexture("_BumpMap", normal);
+                result.EnableKeyword("_NORMALMAP");
             }
 
             result.SetFloat("_Metallic", definition.metallic);
             result.SetFloat("_Smoothness", 1 - definition.roughness);
-            if (!string.IsNullOrEmpty(definition.packed))
+            var packed = Texture(folder, definition.packed);
+            if (packed)
             {
-                var packed = AssetDatabase.LoadAssetAtPath<Texture2D>(folder + definition.packed);
-                if (packed)
-                {
-                    // URP Lit reads metallic from R and smoothness from A, scaled by _Smoothness.
-                    result.SetTexture("_MetallicGlossMap", packed);
-                    result.EnableKeyword("_METALLICSPECGLOSSMAP");
-                    result.SetFloat("_Smoothness", 1);
-                }
+                // URP Lit reads metallic from R and smoothness from A, scaled by _Smoothness.
+                result.SetTexture("_MetallicGlossMap", packed);
+                result.EnableKeyword("_METALLICSPECGLOSSMAP");
+                result.SetFloat("_Smoothness", 1);
             }
 
             // P13World turns emission on at runtime for lights and screens. URP strips shader
             // variants no material uses, so enable it here (black) or builds lose the glow.
-            if (Emissive(material.name) || (renderer && Emissive(renderer.name)))
+            // RealtimeEmissive keeps URP's material validation from switching it back off.
+            if (Emissive(definition.name))
             {
                 result.EnableKeyword("_EMISSION");
                 result.SetColor("_EmissionColor", Color.black);
+                result.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
             }
 
             return result;
         }
 
-        static bool Emissive(string name) => name.Contains("Fluorescent") || name.Contains("Screen") || name.Contains("Emergency");
+        // Loads a texture next to the model and makes the model reimport when it changes.
+        Texture2D Texture(string folder, string file)
+        {
+            if (string.IsNullOrEmpty(file) || !File.Exists(folder + file))
+                return null;
+            context.DependsOnArtifact(folder + file);
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(folder + file);
+        }
+
+        public static bool Emissive(string name) => name.Contains("Fluorescent") || name.Contains("Screen") || name.Contains("Emergency");
     }
 
     [InitializeOnLoad]
