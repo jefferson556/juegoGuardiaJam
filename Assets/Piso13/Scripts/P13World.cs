@@ -66,10 +66,10 @@ namespace Piso13
         public Vector3 Move(Vector3 p, Vector3 delta, float radius)
         {
             var next = p + new Vector3(delta.x, 0, 0);
-            if (CanStand(next, radius) && Clear(p, next, radius, true))
+            if (CanStand(next, radius) && Clear(p, next, 0.05f, true))
                 p = next;
             next = p + new Vector3(0, 0, delta.z);
-            if (CanStand(next, radius) && Clear(p, next, radius, true))
+            if (CanStand(next, radius) && Clear(p, next, 0.05f, true))
                 p = next;
             return p;
         }
