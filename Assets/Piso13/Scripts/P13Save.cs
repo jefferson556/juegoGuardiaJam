@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 namespace Piso13
 {
@@ -37,10 +38,16 @@ namespace Piso13
         public void Apply()
         {
             Validate();
-            QualitySettings.antiAliasing = quality == 0 ? 0 : quality == 1 ? 2 : 4;
             QualitySettings.pixelLightCount = LightBudget;
-            QualitySettings.shadows = quality == 2 ? ShadowQuality.All : ShadowQuality.Disable;
             QualitySettings.vSyncCount = 1;
+            // URP ignores QualitySettings.antiAliasing/shadows; toggle them on the camera instead.
+            // The MSAA sample count comes from the URP asset (PC_RPAsset).
+            var view = Camera.main;
+            if (view)
+            {
+                view.allowMSAA = quality > 0;
+                view.GetUniversalAdditionalCameraData().renderShadows = quality == 2;
+            }
             Screen.SetResolution(width, height, fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
         }
     }
