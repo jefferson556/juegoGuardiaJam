@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Turno0313/Scenes/Greybox_Base.unity
+    guid: 5b2f62b79e41dad489787f9e6d14aea1
+  - enabled: 1
     path: Assets/Piso13/Scenes/Piso13.unity
     guid: fc979d056322fcbf4db9b1a9acb8cffb
   m_configObjects:
