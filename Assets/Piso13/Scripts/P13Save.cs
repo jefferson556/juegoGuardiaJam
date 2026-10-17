@@ -13,7 +13,7 @@ namespace Piso13
         public bool fullscreen;
         public string controller = "Automático";
         public List<Binding> bindings = new List<Binding>();
-        public int LightBudget => quality == 0 ? 2 : quality == 1 ? 3 : 5;
+        public int LightBudget => quality == 0 ? 5 : quality == 1 ? 10 : 18;
         static float Clamp(float v, float low, float high, float fallback)
         {
             return float.IsNaN(v) || float.IsInfinity(v) ? fallback : Mathf.Clamp(v, low, high);

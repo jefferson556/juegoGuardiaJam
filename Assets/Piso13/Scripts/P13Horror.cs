@@ -271,14 +271,18 @@ namespace Piso13
             // never replace those named characters with generated humanoids.
             if (game.Night < 2 || game.Floor != 13)
                 return;
-            if (Active != HorrorKind.Apparition)
-                p = game.Player + game.View.transform.forward * 3.2f - game.View.transform.right * .55f;
+            bool mustBeVisible = Active == HorrorKind.ShadowCrossing || Active == HorrorKind.Apparition || Active == HorrorKind.CameraOnly;
+            if (Active == HorrorKind.ShadowCrossing)
+                p = game.Player + game.View.transform.forward * 3.2f - game.View.transform.right * 1.2f;
+            else if (Active != HorrorKind.Apparition)
+                p = game.Player + game.View.transform.forward * 3.5f - game.View.transform.right * .55f;
             p.y = 0;
             var eye = p + Vector3.up * 1.5f;
             var delta = eye - game.Observer;
-            bool inView = Vector3.Dot(delta.normalized, game.View.transform.forward) > .5f;
-            var end = Active == HorrorKind.ShadowCrossing ? p + game.View.transform.right * 1.1f : p;
-            if (inView || Vector3.Distance(p, game.Guard.Position) < 2 || !game.World.CanStand(p, .25f) || !game.World.CanStand(end, .25f) || !game.World.Clear(p + Vector3.up * .2f, end + Vector3.up * .2f, .25f) || !game.World.Clear(game.Observer, eye))
+            bool inView = Vector3.Dot(delta.normalized, game.View.transform.forward) > .35f;
+            if (!mustBeVisible && inView)
+                return;
+            if (Vector3.Distance(p, game.Guard.Position) < 2 || !game.World.CanStand(p, .18f))
                 return;
             silhouette = new GameObject("SombraBreve_NoLetal");
             silhouette.transform.SetParent(game.World.Root);

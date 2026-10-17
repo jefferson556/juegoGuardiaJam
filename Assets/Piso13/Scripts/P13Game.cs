@@ -117,17 +117,17 @@ namespace Piso13
             flashlight.transform.SetParent(View.transform, false);
             flashlight.transform.localPosition = new Vector3(.18f, -.16f, .55f);
             flashlight.type = LightType.Spot;
-            flashlight.range = 14;
-            flashlight.spotAngle = 48;
-            flashlight.innerSpotAngle = 16;
-            flashlight.intensity = 4;
+            flashlight.range = 20;
+            flashlight.spotAngle = 55;
+            flashlight.innerSpotAngle = 24;
+            flashlight.intensity = 5f;
             flashlight.color = new Color(1, .95f, .87f);
             flashlight.shadows = LightShadows.Soft;
             officeLight = new GameObject("LuzPuerta").AddComponent<Light>();
             officeLight.transform.SetParent(World.Root);
             officeLight.transform.position = P13Rules.RK(0, 2.7f, 3.6f);
-            officeLight.range = 5;
-            officeLight.intensity = 1.5f;
+            officeLight.range = 7.5f;
+            officeLight.intensity = 2.2f;
             officeLight.type = LightType.Point;
             weatherLight = new GameObject("Relámpago").AddComponent<Light>();
             weatherLight.transform.SetParent(World.Root);
@@ -632,6 +632,7 @@ namespace Piso13
             Input.Neutralize();
             Audio.SetGameplay(!paused);
             Guard.Character.Pause(paused);
+            Building?.Elena?.Pause(paused);
             if (paused)
                 Save();
             UI.Reset();

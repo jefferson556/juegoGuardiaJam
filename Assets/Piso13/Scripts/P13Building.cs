@@ -138,6 +138,7 @@ namespace Piso13
         public readonly List<Door> Doors = new List<Door>();
         public ElevatorMachine Lift = new ElevatorMachine();
         readonly List<Transform> elevatorLeaves = new List<Transform>();
+        public P13Character Elena;
         public bool Ringing, Speaking, CallHeard, ArchiveRead, HelpHeard;
         public float AlteredLandingTime;
         bool falseDingPlayed;
@@ -168,6 +169,12 @@ namespace Piso13
                     elevatorLeaves.Add(leaf.transform);
                 }
             }
+
+            Elena = new P13Character("Elena", g.World.Root, 1.68f);
+            Elena.Root.position = new Vector3(26.5f, .8f, -2.7f);
+            Elena.Root.rotation = Quaternion.Euler(0, 90, 0);
+            Elena.Play("seated");
+            Elena.Root.gameObject.SetActive(false);
 
             Publish();
         }
@@ -313,6 +320,13 @@ namespace Piso13
                 game.Audio.Spatial("lift_ding", game.Player, .35f);
             }
 
+            if (Elena != null)
+            {
+                Elena.Root.gameObject.SetActive(game.Floor == 12);
+                if (game.Floor == 12)
+                    Elena.Play(HelpHeard ? "whisper" : CallHeard ? "seated_look" : "seated");
+            }
+
             TickCall(dt);
         }
 
@@ -390,7 +404,7 @@ namespace Piso13
                 return;
             }
 
-            if (CallHeard && !HelpHeard && game.Floor == 12 && Near(P13Rules.RK(26.8f, .8f, 4.7f)))
+            if (CallHeard && !HelpHeard && game.Floor == 12 && Near(new Vector3(26.8f, .8f, 4.7f), 2.2f))
             {
                 const string text = "El cuarto técnico está al otro lado del pasillo. Si el ascensor deja de responder, puedes restablecerlo desde allí. No hace falta que te quedes conmigo.";
                 float duration = game.Audio.Dialogue("ELENA_N2_009_AYUDA");

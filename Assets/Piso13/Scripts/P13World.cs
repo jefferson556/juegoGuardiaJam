@@ -82,9 +82,15 @@ namespace Piso13
             o.transform.localPosition = pos;
             o.transform.localScale = size;
             UnityEngine.Object.Destroy(o.GetComponent<Collider>());
-            var m = new Material(Shader.Find("Standard"));
+            var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            var m = new Material(shader);
             m.color = color;
-            m.SetFloat("_Glossiness", .2f);
+            if (m.HasProperty("_BaseColor"))
+                m.SetColor("_BaseColor", color);
+            if (m.HasProperty("_Smoothness"))
+                m.SetFloat("_Smoothness", .2f);
+            if (m.HasProperty("_Glossiness"))
+                m.SetFloat("_Glossiness", .2f);
             o.GetComponent<Renderer>().sharedMaterial = m;
             return o;
         }
@@ -138,8 +144,8 @@ namespace Piso13
                 l.transform.SetParent(Root);
                 l.transform.position = c.position + Vector3.down * .1f;
                 l.type = LightType.Point;
-                l.range = 6;
-                l.intensity = .65f;
+                l.range = 8;
+                l.intensity = 1.25f;
                 l.color = new Color(.55f, .72f, .8f);
                 Lights.Add(l);
             }
@@ -150,8 +156,8 @@ namespace Piso13
                 l.transform.SetParent(Root);
                 l.transform.position = room.position + Vector3.up * 2;
                 l.type = LightType.Point;
-                l.range = 4;
-                l.intensity = .55f;
+                l.range = 7;
+                l.intensity = 1.15f;
                 l.color = new Color(.65f, .74f, .67f);
                 Lights.Add(l);
             }
@@ -197,11 +203,11 @@ namespace Piso13
             }
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(.075f, .085f, .10f);
+            RenderSettings.ambientLight = new Color(.16f, .17f, .20f);
             RenderSettings.fog = true;
             RenderSettings.fogColor = new Color(.015f, .022f, .03f);
             RenderSettings.fogMode = FogMode.Exponential;
-            RenderSettings.fogDensity = .022f;
+            RenderSettings.fogDensity = .015f;
             foreach (var clue in Data.narrative)
             {
                 var marker = Box("Pista_" + clue.id, clue.position, new Vector3(.19f, .025f, .24f), new Color(.45f, .40f, .27f), Root);
@@ -236,7 +242,7 @@ namespace Piso13
             ))
             {
                 l.l.enabled = l.i < budget;
-                l.l.intensity = (l.l.transform.position.x > 20 ? .55f : .65f) * multiplier * (1 + brightness);
+                l.l.intensity = (l.l.transform.position.x > 20 ? 1.15f : 1.25f) * multiplier * (1 + brightness);
             }
 
             OfficeDoor.localPosition = new Vector3(DoorClosed ? 0 : 1.85f, 1.35f, -3);

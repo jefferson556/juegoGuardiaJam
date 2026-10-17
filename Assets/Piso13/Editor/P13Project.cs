@@ -122,17 +122,25 @@ namespace Piso13.Editor
             if (definition == null)
                 return null;
             string folder = Path.GetDirectoryName(assetPath).Replace('\\', '/') + "/Textures/";
-            var result = new Material(Shader.Find("Standard"))
+            var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            var result = new Material(shader)
             {name = material.name};
             var c = definition.color;
-            result.color = new Color(c[0], c[1], c[2], c[3]);
+            var col = new Color(c[0], c[1], c[2], c[3]);
+            result.color = col;
+            if (result.HasProperty("_BaseColor"))
+                result.SetColor("_BaseColor", col);
             if (!string.IsNullOrEmpty(definition.albedo))
             {
                 var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(folder + definition.albedo);
                 if (texture)
                 {
                     result.mainTexture = texture;
+                    if (result.HasProperty("_BaseMap"))
+                        result.SetTexture("_BaseMap", texture);
                     result.color = Color.white;
+                    if (result.HasProperty("_BaseColor"))
+                        result.SetColor("_BaseColor", Color.white);
                 }
             }
 
@@ -147,7 +155,10 @@ namespace Piso13.Editor
             }
 
             result.SetFloat("_Metallic", definition.metallic);
-            result.SetFloat("_Glossiness", 1 - definition.roughness);
+            if (result.HasProperty("_Smoothness"))
+                result.SetFloat("_Smoothness", 1 - definition.roughness);
+            if (result.HasProperty("_Glossiness"))
+                result.SetFloat("_Glossiness", 1 - definition.roughness);
             if (!string.IsNullOrEmpty(definition.packed))
             {
                 var packed = AssetDatabase.LoadAssetAtPath<Texture2D>(folder + definition.packed);
@@ -203,17 +214,19 @@ namespace Piso13.Editor
             // Runtime creates Standard materials; retain this shader in standalone players.
             var graphics = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset")[0]);
             var shaders = graphics.FindProperty("m_AlwaysIncludedShaders");
-            var standard = Shader.Find("Standard");
-            bool found = false;
-            for (int i = 0; i < shaders.arraySize; i++)
-                if (shaders.GetArrayElementAtIndex(i).objectReferenceValue == standard)
-                    found = true;
-            if (!found)
+            Action<string> ensureShader = shaderName =>
             {
+                var s = Shader.Find(shaderName);
+                if (!s) return;
+                for (int i = 0; i < shaders.arraySize; i++)
+                    if (shaders.GetArrayElementAtIndex(i).objectReferenceValue == s)
+                        return;
                 shaders.InsertArrayElementAtIndex(shaders.arraySize);
-                shaders.GetArrayElementAtIndex(shaders.arraySize - 1).objectReferenceValue = standard;
+                shaders.GetArrayElementAtIndex(shaders.arraySize - 1).objectReferenceValue = s;
                 graphics.ApplyModifiedProperties();
-            }
+            };
+            ensureShader("Universal Render Pipeline/Lit");
+            ensureShader("Standard");
 
             if (!File.Exists(ScenePath))
             {
