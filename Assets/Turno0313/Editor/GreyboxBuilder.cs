@@ -14,7 +14,8 @@ namespace Turno0313.EditorTools
     // Builds the base greybox from the GDD (caseta, pasillo, oficinas) with the player prefab, the
     // AnomalyManager and the four hallway anomalies. Running it again rebuilds the scene from scratch.
     // Layout (metres): caseta x[-2.5,2.5] z[-2,2]; pasillo x[-1.25,1.25] z[2,22]; oficinas x[-10,-1.25] z[11,21].
-    public static class GreyboxBuilder
+    // Act 1 pieces (clock, alarm panel, sleep bar) live in GreyboxBuilder.Act1.cs.
+    public static partial class GreyboxBuilder
     {
         public const string Root = "Assets/Turno0313";
         public const string ScenePath = Root + "/Scenes/Greybox_Base.unity";
@@ -24,6 +25,7 @@ namespace Turno0313.EditorTools
         const string Piso13Models = "Assets/Piso13/Resources/Models/";
         const string Piso13Audio = "Assets/Piso13/Resources/Audio/";
         const string LitShaderPath = "Packages/com.unity.render-pipelines.universal/Shaders/Lit.shader";
+        const string WorldTextShaderPath = Root + "/Shaders/WorldText.shader";
         const float H = 3f;
         const float T = .2f;
         const int IgnoreRaycastLayer = 2;
@@ -51,8 +53,8 @@ namespace Turno0313.EditorTools
                     throw new InvalidOperationException("Hay escenas abiertas con cambios sin guardar; guárdalas antes de generar el greybox.");
 
             Folders();
-            Materials();
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            Materials();
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             var playerPrefab = BuildPlayerPrefab();
@@ -70,6 +72,7 @@ namespace Turno0313.EditorTools
             Portrait(anomalies);
             ExitSign(anomalies);
             Chair(anomalies);
+            var clock = Act1Anomalies(anomalies);
 
             var player = (GameObject)PrefabUtility.InstantiatePrefab(playerPrefab, scene);
             player.name = "Player";
@@ -79,6 +82,8 @@ namespace Turno0313.EditorTools
             var systems = new GameObject("Sistemas");
             var manager = systems.AddComponent<AnomalyManager>();
             Set(manager, "viewer", player.GetComponentInChildren<Camera>());
+            Set(manager, "firstOfNight", clock);
+            Act1Systems(systems);
             var hud = systems.AddComponent<DebugHUD>();
             Set(hud, "interactor", player.GetComponent<PlayerInteractor>());
             Set(hud, "reporter", player.GetComponent<PlayerReporter>());
@@ -202,18 +207,8 @@ namespace Turno0313.EditorTools
             MarkReportable(monitors.gameObject, "Monitores");
             MarkReportable(ChairModel(c, "Silla_Caseta", new Vector3(0, 0, -.7f), 180f), "Silla");
 
-            var panel = Group(c, "Panel_Alarma (Miguel)");
-            panel.localPosition = new Vector3(-2.37f, 1.35f, .6f);
-            Box("Caja", panel, Vector3.zero, new Vector3(.06f, .42f, .32f), mats["Panel"]);
-            Box("Led", panel, new Vector3(.035f, .16f, .1f), new Vector3(.01f, .03f, .03f), mats["Rojo"], false);
-            Text("Rotulo", panel, new Vector3(.04f, .16f, -.03f), Quaternion.Euler(0, -90, 0), "ALARMA", .006f, new Color(.1f, .1f, .1f));
-            MarkReportable(panel.gameObject, "Panel de alarma");
-
-            var clock = Group(c, "Reloj_Pared (Miguel)");
-            clock.localPosition = new Vector3(2.37f, 2.15f, 0);
-            Box("Caja", clock, Vector3.zero, new Vector3(.06f, .26f, .62f), mats["Negro"]);
-            Text("Hora", clock, new Vector3(-.04f, 0, 0), Quaternion.Euler(0, 90, 0), "03:12", .018f, new Color(1f, .2f, .12f));
-            MarkReportable(clock.gameObject, "Reloj");
+            // Alarm panel and wall clock (Act 1): see GreyboxBuilder.Act1.cs.
+            AlarmPanelProp(c);
         }
 
         static void Corridor(Transform level)
@@ -546,7 +541,7 @@ namespace Turno0313.EditorTools
             return go;
         }
 
-        static void Text(string name, Transform parent, Vector3 at, Quaternion rotation, string text, float size, Color color)
+        static TextMesh Text(string name, Transform parent, Vector3 at, Quaternion rotation, string text, float size, Color color)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
@@ -559,7 +554,9 @@ namespace Turno0313.EditorTools
             mesh.anchor = TextAnchor.MiddleCenter;
             mesh.alignment = TextAlignment.Center;
             mesh.color = color;
-            go.GetComponent<MeshRenderer>().sharedMaterial = font.material;
+            // Not font.material: its shader ignores walls once OnGUI has run (see WorldText.shader).
+            go.GetComponent<MeshRenderer>().sharedMaterial = mats["TextoMundo"];
+            return mesh;
         }
 
         static void MarkReportable(GameObject go, string displayName)
@@ -671,6 +668,27 @@ namespace Turno0313.EditorTools
             Mat("Fluorescente", new Color(.9f, .92f, .95f), .1f, 0, new Color(1.15f, 1.2f, 1.25f));
             Mat("CartelVerde", new Color(.05f, .33f, .14f), .3f, 0, new Color(.03f, .55f, .22f));
             Mat("CartelBlanco", new Color(.9f, 1f, .95f), .3f, 0, new Color(1.3f, 1.5f, 1.4f));
+            TextMaterial();
+        }
+
+        // 3D texts: the built-in font atlas with a shader that respects depth.
+        static void TextMaterial()
+        {
+            string path = MaterialsFolder + "/T13_TextoMundo.mat";
+            var shader = AssetDatabase.LoadAssetAtPath<Shader>(WorldTextShaderPath);
+            if (!shader)
+                throw new FileNotFoundException("Falta el shader " + WorldTextShaderPath);
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (!m)
+            {
+                m = new Material(shader);
+                AssetDatabase.CreateAsset(m, path);
+            }
+
+            m.shader = shader;
+            m.mainTexture = font.material.mainTexture;
+            EditorUtility.SetDirty(m);
+            mats["TextoMundo"] = m;
         }
 
         static void Mat(string name, Color color, float smoothness, float metallic = 0, Color? emission = null)

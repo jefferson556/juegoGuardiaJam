@@ -20,8 +20,13 @@ namespace Turno0313
 
         Quaternion closed;
         float amount;
+        bool ready;
 
-        void Awake() => closed = transform.localRotation;
+        void Awake()
+        {
+            closed = transform.localRotation;
+            ready = true;
+        }
 
         public override void Interact(PlayerController player)
         {
@@ -34,6 +39,17 @@ namespace Turno0313
 
             IsOpen = !IsOpen;
             Play(IsOpen ? openClip : closeClip);
+        }
+
+        // Closed at once and without sound (night reset).
+        public void ResetClosed()
+        {
+            // A door that was never active (the anomalous one) is still closed.
+            if (!ready)
+                return;
+            IsOpen = false;
+            amount = 0;
+            transform.localRotation = closed;
         }
 
         void Update()

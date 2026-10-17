@@ -30,6 +30,8 @@ namespace Turno0313
         [SerializeField] float firstDelay = 20f;
         [SerializeField] float interval = 20f;
         [SerializeField] int maxActive = 3;
+        [Tooltip("Anomalía que se activa primero cada noche (vacío = al azar). En el Acto 1 es el reloj.")]
+        [SerializeField] Anomaly firstOfNight;
         [Header("Reporte y detección")]
         [SerializeField] float reportCooldown = .8f;
         [Tooltip("Segundos mirando una anomalía activa para contarla como notada.")]
@@ -64,12 +66,15 @@ namespace Turno0313
         public event Action<Anomaly> Noticed;
         public event Action<Anomaly, ReportSource> Reported;
         public event Action<GameObject, ReportSource> WrongReport;
+        // After every ResetNight (night restart at 03:13, change of act, F3).
+        public event Action NightReset;
 
         readonly List<Anomaly> anomalies = new List<Anomaly>();
         readonly List<Anomaly> candidates = new List<Anomaly>();
         readonly Dictionary<Anomaly, float> watched = new Dictionary<Anomaly, float>();
         readonly Plane[] frustum = new Plane[6];
         float nextActivation, lastReport = -99f;
+        int activatedThisNight;
 
         void Awake()
         {
@@ -153,6 +158,15 @@ namespace Turno0313
                 candidates.Add(a);
             }
 
+            // Each night opens with the same anomaly when there is one; if the player is looking at it, try again later.
+            if (activatedThisNight == 0 && firstOfNight && firstOfNight.State == AnomalyState.Normal && firstOfNight.AvailableIn(act))
+            {
+                if (!candidates.Contains(firstOfNight))
+                    return false;
+                Activate(firstOfNight);
+                return true;
+            }
+
             if (candidates.Count == 0)
                 return false;
             Activate(candidates[UnityEngine.Random.Range(0, candidates.Count)]);
@@ -165,6 +179,7 @@ namespace Turno0313
                 return;
             anomaly.Activate();
             watched.Remove(anomaly);
+            activatedThisNight++;
             Activated?.Invoke(anomaly);
         }
 
@@ -217,7 +232,9 @@ namespace Turno0313
                     a.ResetToNormal();
             watched.Clear();
             CorrectReports = WrongReports = NoticedCount = 0;
+            activatedThisNight = 0;
             nextActivation = Time.time + firstDelay;
+            NightReset?.Invoke();
         }
 
         public void SetAct(GameAct newAct)

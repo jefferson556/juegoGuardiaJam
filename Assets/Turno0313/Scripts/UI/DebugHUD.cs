@@ -58,16 +58,20 @@ namespace Turno0313
             float s = Screen.height / 1080f;
             GUI.matrix = Matrix4x4.Scale(new Vector3(s, s, 1));
             float w = Screen.width / s, h = 1080f;
+            // Another system (alarm panel, monitors) has the controls: no crosshair, prompts or "click" hint.
+            var player = PlayerController.Instance;
+            bool steering = !player || player.ControlEnabled;
 
             bool hint = (interactor && interactor.Current) || (reporter && reporter.Aiming);
             GUI.color = hint ? Color.white : new Color(1, 1, 1, .55f);
-            GUI.DrawTexture(new Rect(w / 2 - 3, h / 2 - 3, 6, 6), Texture2D.whiteTexture);
+            if (steering)
+                GUI.DrawTexture(new Rect(w / 2 - 3, h / 2 - 3, 6, 6), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
             var prompt = new StringBuilder();
-            if (interactor && interactor.Current)
+            if (steering && interactor && interactor.Current)
                 prompt.Append("[E] ").Append(interactor.Current.Prompt);
-            if (reporter && reporter.Aiming)
+            if (steering && reporter && reporter.Aiming)
                 prompt.Append(prompt.Length > 0 ? "     " : "").Append("[R] Reportar");
             if (prompt.Length > 0)
                 Shadowed(new Rect(0, h / 2 + 34, w, 34), prompt.ToString(), label);
@@ -78,7 +82,7 @@ namespace Turno0313
             if (Time.timeSinceLevelLoad < helpSeconds)
                 Shadowed(new Rect(24, 20, 900, 26), "WASD moverse · Shift correr · E interactuar · R / clic derecho reportar · F linterna · Esc soltar el mouse · F1 pruebas", small);
 
-            if (Cursor.lockState != CursorLockMode.Locked)
+            if (steering && Cursor.lockState != CursorLockMode.Locked)
                 Shadowed(new Rect(0, h / 2 - 80, w, 34), "Clic para seguir jugando", label);
 
             if (panel)
