@@ -50,16 +50,16 @@ namespace Piso13.Realidad
 
         // Nodos del mapa idénticos a P13Guard en Piso 13
         public static readonly Vector3[] destinations = {
-            P13Rules.RK(0, .8f, .8f),      // 0: Oficinas
-            P13Rules.RK(-6.8f, .8f, .6f),   // 1: Recepcion
-            P13Rules.RK(0, .8f, 7.55f),     // 2: Ascensor
-            P13Rules.RK(0, .8f, 4.5f),      // 3: Pasillo central
-            P13Rules.RK(-6.2f, .8f, 5.9f),  // 4: Archivo
-            P13Rules.RK(6.2f, .8f, 5.9f),   // 5: Servidores
-            P13Rules.RK(6.8f, .8f, .6f),    // 6: Tecnica
-            P13Rules.RK(-6.8f, .8f, -6.2f), // 7: Abandonada
-            P13Rules.RK(6.8f, .8f, -6.2f),  // 8: Almacen (Spawn)
-            P13Rules.RK(0, .8f, 3.85f)      // 9: Puerta
+            P13RealidadRules.RK(0, .8f, .8f),      // 0: Oficinas
+            P13RealidadRules.RK(-6.8f, .8f, .6f),   // 1: Recepcion
+            P13RealidadRules.RK(0, .8f, 7.55f),     // 2: Ascensor
+            P13RealidadRules.RK(0, .8f, 4.5f),      // 3: Pasillo central
+            P13RealidadRules.RK(-6.2f, .8f, 5.9f),  // 4: Archivo
+            P13RealidadRules.RK(6.2f, .8f, 5.9f),   // 5: Servidores
+            P13RealidadRules.RK(6.8f, .8f, .6f),    // 6: Tecnica
+            P13RealidadRules.RK(-6.8f, .8f, -6.2f), // 7: Abandonada
+            P13RealidadRules.RK(6.8f, .8f, -6.2f),  // 8: Almacen (Spawn)
+            P13RealidadRules.RK(0, .8f, 3.85f)      // 9: Puerta
         };
 
         static readonly int[][] neighbors = {
@@ -75,7 +75,7 @@ namespace Piso13.Realidad
             new[]{3}              // 9: Puerta -> Pasillo
         };
 
-        P13Navigation navigation;
+        P13RealidadNavigation navigation;
         List<Vector3> route = new List<Vector3>();
         int routeIndex = 0;
         int location = 8;
@@ -106,8 +106,8 @@ namespace Piso13.Realidad
             rootGo.transform.SetParent(transform, false);
             Root = rootGo.transform;
 
-            // Instanciar modelo utilizando la conversión de ejes oficial de P13World
-            Visual = P13World.Model(modelName, Root).transform;
+            // Instanciar modelo utilizando la conversión de ejes oficial de P13RealidadWorld
+            Visual = P13RealidadWorld.Model(modelName, Root).transform;
 
             var renderers = Visual.GetComponentsInChildren<Renderer>();
             if (renderers.Length > 0)
@@ -164,9 +164,9 @@ namespace Piso13.Realidad
             Publish();
         }
 
-        public void InitNavigation(P13World world)
+        public void InitNavigation(P13RealidadWorld world)
         {
-            navigation = new P13Navigation(world);
+            navigation = new P13RealidadNavigation(world);
             if (navigation != null)
             {
                 Position = navigation.Safe(Position);

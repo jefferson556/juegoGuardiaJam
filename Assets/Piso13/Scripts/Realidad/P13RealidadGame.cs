@@ -21,10 +21,10 @@ namespace Piso13.Realidad
 
         [Header("Mundo")]
         public WorldData Data;
-        public P13World World;
+        public P13RealidadWorld World;
         public P13RealidadEnemy Enemy;
         public P13RealidadUI UI;
-        public P13Audio Audio;
+        public P13RealidadAudio Audio;
 
         [Header("Jugador")]
         public Camera View;
@@ -74,6 +74,12 @@ namespace Piso13.Realidad
 
         void Awake()
         {
+            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "Piso13 Realidad")
+            {
+                Destroy(gameObject);
+                return;
+            }
+
             if (Instance && Instance != this)
             {
                 Destroy(gameObject);
@@ -81,8 +87,8 @@ namespace Piso13.Realidad
             }
             Instance = this;
 
-            Audio = gameObject.AddComponent<P13Audio>();
-            var settings = new P13Settings();
+            Audio = gameObject.AddComponent<P13RealidadAudio>();
+            var settings = new P13RealidadSettings();
             Audio.Setup(settings);
             Audio.SetGameplay(true);
 
@@ -94,6 +100,19 @@ namespace Piso13.Realidad
 
         public void StartGameSession()
         {
+            if (Audio == null)
+            {
+                Audio = GetComponent<P13RealidadAudio>() ?? gameObject.AddComponent<P13RealidadAudio>();
+                var settings = new P13RealidadSettings();
+                Audio.Setup(settings);
+                Audio.SetGameplay(true);
+            }
+            if (UI == null)
+            {
+                UI = GetComponent<P13RealidadUI>() ?? gameObject.AddComponent<P13RealidadUI>();
+                UI.Game = this;
+            }
+
             CleanupSceneObjects();
             BuildWorld();
             SetupPlayer();
@@ -164,14 +183,14 @@ namespace Piso13.Realidad
                     return;
                 }
                 Data = JsonUtility.FromJson<WorldData>(dataAsset.text);
-                World = new P13World(Data);
+                World = new P13RealidadWorld(Data);
                 World.Build();
                 World.DoorClosed = false;
 
                 // Luz cenital de la puerta de oficina
                 officeDoorLight = new GameObject("LuzPuertaOficina").AddComponent<Light>();
                 officeDoorLight.transform.SetParent(World.Root);
-                officeDoorLight.transform.position = P13Rules.RK(0, 2.7f, 3.6f);
+                officeDoorLight.transform.position = P13RealidadRules.RK(0, 2.7f, 3.6f);
                 officeDoorLight.range = 8.5f;
                 officeDoorLight.intensity = 2.5f;
                 officeDoorLight.type = LightType.Point;
@@ -185,7 +204,7 @@ namespace Piso13.Realidad
 
         void SetupPlayer()
         {
-            PlayerPosition = P13Rules.RK(0, 0.8f, 1.2f);
+            PlayerPosition = P13RealidadRules.RK(0, 0.8f, 1.2f);
             Yaw = 180f;
             Pitch = 0f;
             EyeHeight = 1.65f;
@@ -217,7 +236,7 @@ namespace Piso13.Realidad
             // Mano con linterna
             try
             {
-                var handObj = P13World.Model("Piso13_HandFlashlight", View.transform);
+                var handObj = P13RealidadWorld.Model("Piso13_HandFlashlight", View.transform);
                 if (handObj != null)
                 {
                     hand = handObj.transform;
@@ -620,12 +639,12 @@ namespace Piso13.Realidad
 
         void InteractDoor()
         {
-            float distToDoor = Vector3.Distance(PlayerPosition, P13Rules.RK(0, 0.8f, 2.35f));
+            float distToDoor = Vector3.Distance(PlayerPosition, P13RealidadRules.RK(0, 0.8f, 2.35f));
             if (distToDoor < 2.5f)
             {
                 World.DoorClosed = !World.DoorClosed;
                 World.Revision++;
-                Audio.Spatial(World.DoorClosed ? "P13_Door_Latch" : "P13_Door_Open", P13Rules.RK(0, 1.2f, 3f), 0.5f);
+                Audio.Spatial(World.DoorClosed ? "P13_Door_Latch" : "P13_Door_Open", P13RealidadRules.RK(0, 1.2f, 3f), 0.5f);
                 ShowNotification(World.DoorClosed ? "Puerta cerrada." : "Puerta abierta.");
             }
         }
@@ -741,6 +760,16 @@ namespace Piso13.Realidad
         }
 
         public void RestartSession()
+        {
+            CursorLock(false);
+            if (Audio != null)
+            {
+                Audio.SetGameplay(false);
+            }
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        }
+
+        public void LoadPiso13()
         {
             CursorLock(false);
             if (Audio != null)

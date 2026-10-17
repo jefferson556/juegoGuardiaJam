@@ -122,7 +122,7 @@ namespace Piso13
         public void Menu(bool active)
         {
             menuWanted = active;
-            if (active && !menu.isPlaying)
+            if (active && menu != null && !menu.isPlaying)
                 menu.Play();
         }
 
@@ -131,7 +131,8 @@ namespace Piso13
             if (Time.unscaledTime - lastHover < .09f || Time.unscaledTime - lastClick < .12f)
                 return;
             lastHover = Time.unscaledTime;
-            ui.PlayOneShot(Clip("P13_UI_Hover"), settings.master * settings.effects * .45f);
+            if (ui != null)
+                ui.PlayOneShot(Clip("P13_UI_Hover"), settings != null ? settings.master * settings.effects * .45f : 0.45f);
         }
 
         public void Confirm()
@@ -139,8 +140,11 @@ namespace Piso13
             if (Time.unscaledTime - lastClick < .09f)
                 return;
             lastClick = Time.unscaledTime;
-            ui.Stop();
-            ui.PlayOneShot(Clip("P13_UI_Confirm"), settings.master * settings.effects * .55f);
+            if (ui != null)
+            {
+                ui.Stop();
+                ui.PlayOneShot(Clip("P13_UI_Confirm"), settings != null ? settings.master * settings.effects * .55f : 0.55f);
+            }
         }
 
         public void SetGameplay(bool active)
@@ -148,24 +152,34 @@ namespace Piso13
             gameplay = active;
             if (active)
             {
-                if (!hum.isPlaying)
+                if (hum != null && !hum.isPlaying)
                     hum.Play();
-                dialogue.UnPause();
+                if (dialogue != null)
+                    dialogue.UnPause();
             }
             else
             {
-                hum.Pause();
-                foreach (var r in rains)
-                    r.Pause();
-                step.Stop();
-                breath.Stop();
+                if (hum != null) hum.Pause();
+                if (rains != null)
+                {
+                    foreach (var r in rains)
+                        if (r != null) r.Pause();
+                }
+                if (step != null) step.Stop();
+                if (breath != null) breath.Stop();
                 breathGain = breathTarget = 0;
                 locomotion = default(PlayerAudioPolicy);
-                foreach (var d in doors.Values)
-                    d.Stop();
-                foreach (var s in spatial)
-                    s.Stop();
-                dialogue.Pause();
+                if (doors != null)
+                {
+                    foreach (var d in doors.Values)
+                        if (d != null) d.Stop();
+                }
+                if (spatial != null)
+                {
+                    foreach (var s in spatial)
+                        if (s != null) s.Stop();
+                }
+                if (dialogue != null) dialogue.Pause();
             }
         }
 
@@ -353,7 +367,7 @@ namespace Piso13
 
         public void StopDialogue()
         {
-            dialogue.Stop();
+            if (dialogue != null) dialogue.Stop();
         }
 
         // These generators are ports of DoorAudioSystem.swift, not substitute voice recordings.

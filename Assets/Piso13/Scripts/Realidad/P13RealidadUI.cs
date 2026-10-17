@@ -261,9 +261,14 @@ namespace Piso13.Realidad
             GUI.Label(new Rect(170, 160, 840, 130), "FIN DEL TURNO", title);
             GUI.Label(new Rect(175, 335, 800, 75), "El guardia te ha encontrado.", body);
 
-            if (GUI.Button(new Rect(175, 450, 420, 50), "VOLVER A PISO 13 (REINICIAR)", button))
+            if (GUI.Button(new Rect(175, 430, 420, 50), "REINTENTAR", button))
             {
                 Game.RestartSession();
+            }
+
+            if (GUI.Button(new Rect(175, 495, 420, 50), "VOLVER A PISO 13", button))
+            {
+                Game.LoadPiso13();
             }
         }
     }

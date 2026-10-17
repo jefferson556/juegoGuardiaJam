@@ -53,6 +53,7 @@ namespace Piso13
 
         public void Pause(bool p)
         {
+            if (animation == null) return;
             foreach (AnimationState s in animation)
                 s.speed = p ? 0 : 1;
         }

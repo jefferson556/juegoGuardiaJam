@@ -67,6 +67,8 @@ namespace Piso13
             }
 
             Instance = this;
+            Phase = GamePhase.Menu;
+            Failure = "";
             try
             {
                 var data = Resources.Load<TextAsset>("Data/World");
@@ -109,34 +111,62 @@ namespace Piso13
 
         void Build()
         {
-            if (built)
+            if (built && World != null && World.Root != null)
                 return;
-            World.Build();
+            if (Data == null)
+            {
+                var dataAsset = Resources.Load<TextAsset>("Data/World");
+                if (dataAsset != null) Data = JsonUtility.FromJson<WorldData>(dataAsset.text);
+            }
+            if (World == null && Data != null)
+                World = new P13World(Data);
+            if (World != null)
+                World.Build();
             Guard = new P13Guard(this);
             Building = new P13Building(this);
             Horror = new P13Horror(this);
-            hand = P13World.Model("Piso13_HandFlashlight", View.transform).transform;
-            flashlight = new GameObject("Linterna").AddComponent<Light>();
-            flashlight.transform.SetParent(View.transform, false);
-            flashlight.transform.localPosition = new Vector3(.18f, -.16f, .55f);
-            flashlight.type = LightType.Spot;
-            flashlight.range = 20;
-            flashlight.spotAngle = 55;
-            flashlight.innerSpotAngle = 24;
-            flashlight.intensity = 5f;
-            flashlight.color = new Color(1, .95f, .87f);
-            flashlight.shadows = LightShadows.Soft;
-            officeLight = new GameObject("LuzPuerta").AddComponent<Light>();
-            officeLight.transform.SetParent(World.Root);
-            officeLight.transform.position = P13Rules.RK(0, 2.7f, 3.6f);
-            officeLight.range = 7.5f;
-            officeLight.intensity = 2.2f;
-            officeLight.type = LightType.Point;
-            weatherLight = new GameObject("Relámpago").AddComponent<Light>();
-            weatherLight.transform.SetParent(World.Root);
-            weatherLight.type = LightType.Point;
-            weatherLight.range = 5;
-            weatherLight.color = new Color(.65f, .78f, 1);
+            if (View == null)
+            {
+                var camObj = GameObject.Find("PlayerCamera");
+                if (camObj == null) camObj = new GameObject("PlayerCamera");
+                View = camObj.GetComponent<Camera>();
+                if (View == null) View = camObj.AddComponent<Camera>();
+                camObj.tag = "MainCamera";
+            }
+            if (!hand)
+            {
+                hand = P13World.Model("Piso13_HandFlashlight", View.transform).transform;
+            }
+            if (!flashlight)
+            {
+                flashlight = new GameObject("Linterna").AddComponent<Light>();
+                flashlight.transform.SetParent(View.transform, false);
+                flashlight.transform.localPosition = new Vector3(.18f, -.16f, .55f);
+                flashlight.type = LightType.Spot;
+                flashlight.range = 20;
+                flashlight.spotAngle = 55;
+                flashlight.innerSpotAngle = 24;
+                flashlight.intensity = 5f;
+                flashlight.color = new Color(1, .95f, .87f);
+                flashlight.shadows = LightShadows.Soft;
+            }
+            if (!officeLight)
+            {
+                officeLight = new GameObject("LuzPuerta").AddComponent<Light>();
+                officeLight.transform.SetParent(World.Root);
+                officeLight.transform.position = P13Rules.RK(0, 2.7f, 3.6f);
+                officeLight.range = 7.5f;
+                officeLight.intensity = 2.2f;
+                officeLight.type = LightType.Point;
+            }
+            if (!weatherLight)
+            {
+                weatherLight = new GameObject("Relámpago").AddComponent<Light>();
+                weatherLight.transform.SetParent(World.Root);
+                weatherLight.type = LightType.Point;
+                weatherLight.range = 5;
+                weatherLight.color = new Color(.65f, .78f, 1);
+            }
             built = true;
         }
 
@@ -183,6 +213,24 @@ namespace Piso13
         {
             try
             {
+                if (Settings == null)
+                {
+                    Settings = P13Save.Read<P13Settings>("settings-v1.json") ?? new P13Settings();
+                    Settings.Validate();
+                }
+                if (Input == null)
+                    Input = new P13Input(Settings);
+                if (Audio == null)
+                {
+                    Audio = GetComponent<P13Audio>() ?? gameObject.AddComponent<P13Audio>();
+                    Audio.Setup(Settings);
+                }
+                if (UI == null)
+                {
+                    UI = GetComponent<P13UI>() ?? gameObject.AddComponent<P13UI>();
+                    UI.Game = this;
+                }
+
                 Build();
                 World.Root.gameObject.SetActive(true);
                 Player = P13Rules.RK(0, .8f, 1.2f);
@@ -235,10 +283,13 @@ namespace Piso13
 
                 Phase = GamePhase.Playing;
                 secondClock = saveClock = noiseDistance = headPhase = 0;
-                Audio.Menu(false);
-                Audio.SetGameplay(true);
-                Input.Neutralize();
-                UI.Reset();
+                if (Audio != null)
+                {
+                    Audio.Menu(false);
+                    Audio.SetGameplay(true);
+                }
+                Input?.Neutralize();
+                UI?.Reset();
                 CursorState();
                 UpdateCamera(0);
                 Debug.Log("P13_UNITY_READY demo=" + Demo + " floor=" + Floor);
@@ -357,8 +408,11 @@ namespace Piso13
                 }
             }
 
+            if (Phase != GamePhase.Playing || Building == null || Guard == null)
+                return;
+
             var before = Player;
-            bool movingAllowed = !CCTV && !Map && Task < 0 && !Building.Lift.Moving;
+            bool movingAllowed = !CCTV && !Map && Task < 0 && (Building.Lift == null || !Building.Lift.Moving);
             bool running = Input.Held("sprint") && !Crouched;
             if (movingAllowed)
             {
@@ -615,7 +669,7 @@ namespace Piso13
             if (hand)
             {
                 hand.gameObject.SetActive(!CCTV && !Map);
-                float amplitude = Crouched ? .00065f : Input.Held("sprint") ? .013f : .004f;
+                float amplitude = Crouched ? .00065f : (Input != null && Input.Held("sprint")) ? .013f : .004f;
                 var desired = new Vector3(Mathf.Sin(headPhase) * amplitude * .6f, Mathf.Cos(headPhase * 2) * amplitude, Mathf.Sin(headPhase * 2) * amplitude * .3f);
                 bool blocked = !World.Clear(View.transform.position, View.transform.TransformPoint(new Vector3(.18f, -.16f, .8f)), .12f);
                 if (blocked)
@@ -632,13 +686,15 @@ namespace Piso13
             if (Phase != GamePhase.Playing && Phase != GamePhase.Paused)
                 return;
             Phase = paused ? GamePhase.Paused : GamePhase.Playing;
-            Input.Neutralize();
-            Audio.SetGameplay(!paused);
-            Guard.Character.Pause(paused);
-            Building?.Elena?.Pause(paused);
+            Input?.Neutralize();
+            if (Audio != null) Audio.SetGameplay(!paused);
+            if (Guard != null && Guard.Character != null)
+                Guard.Character.Pause(paused);
+            if (Building != null && Building.Elena != null)
+                Building.Elena.Pause(paused);
             if (paused)
                 Save();
-            UI.Reset();
+            if (UI != null) UI.Reset();
             CursorState();
         }
 
@@ -701,7 +757,7 @@ namespace Piso13
 
         public void Save()
         {
-            if (!built || Phase != GamePhase.Playing && Phase != GamePhase.Paused || Threatened || Task >= 0 || !Building.Stable)
+            if (!built || Building == null || Guard == null || World == null || (Phase != GamePhase.Playing && Phase != GamePhase.Paused) || Threatened || Task >= 0 || !Building.Stable)
                 return;
             var s = new P13Checkpoint{demo = Demo, minute = Minute, energy = Energy, player = Player, yaw = Yaw, pitch = Pitch, guard = Guard.Position, guardYaw = Guard.Yaw, doorClosed = World.DoorClosed, technical = Technical, servers = Servers, archive = Archive, returned = Returned, watchedCCTV = Watched, night = Night, floor = Floor, flashlight = Flashlight, discovered = new List<int>(Discovered), clues = new List<string>(Clues), doors = Building.Snapshot(), trips = Building.Trips, callAttempts = Building.Attempts, callHeard = Building.CallHeard, archiveRead = Building.ArchiveRead, elenaHelpHeard = Building.HelpHeard, elevatorNeedsService = Building.Lift.needsService, setPieceCompleted = SetPieceCompleted};
             if (s.Valid(World) && !P13Save.Write("unity-checkpoint-v1.json", s))
