@@ -22,6 +22,9 @@ namespace Piso13
             float scale = height / b.size.y;
             Visual.localScale = Vector3.one * scale;
             Visual.localPosition = new Vector3(0, -.8f - b.min.y * scale, 0);
+            // The character FBX files face -Z after the RealityKit -> Unity axis conversion, but
+            // the game logic treats yaw 0 as +Z (Atan2(x, z)). Turn the model around to match.
+            Visual.localRotation = Quaternion.Euler(0, 180, 0);
             animation = Visual.GetComponentInChildren<Animation>();
             if (!animation)
                 throw new InvalidOperationException(model + ": animaciones FBX no importadas; ejecuta Piso 13 > Preparar proyecto.");
