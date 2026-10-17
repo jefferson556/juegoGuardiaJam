@@ -51,6 +51,9 @@ namespace Piso13
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Bootstrap()
         {
+            // Only the Piso 13 prototype scene runs this game; other scenes have their own systems.
+            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "Piso13")
+                return;
             if (!FindFirstObjectByType<P13Game>())
                 new GameObject("Piso13").AddComponent<P13Game>();
         }

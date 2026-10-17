@@ -292,7 +292,9 @@ namespace Piso13.Editor
                 EditorSceneManager.SaveScene(scene, ScenePath);
             }
 
-            EditorBuildSettings.scenes = new[]{new EditorBuildSettingsScene(ScenePath, true)};
+            // Keep the scenes other people add to Build Settings; only make sure Piso 13 is listed.
+            if (!EditorBuildSettings.scenes.Any(s => s.path == ScenePath))
+                EditorBuildSettings.scenes = EditorBuildSettings.scenes.Append(new EditorBuildSettingsScene(ScenePath, true)).ToArray();
             AssetDatabase.SaveAssets();
             Debug.Log("P13_PROJECT_PREPARED");
         }
