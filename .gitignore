@@ -124,6 +124,14 @@ InitTestScene*.unity*
 Thumbs.db
 Desktop.ini
 
+# Scenes Unity saves by itself after a crash
+/[Aa]ssets/_Recovery/
+/[Aa]ssets/_Recovery.meta
+
+# Manual Blender backups
+*.blend.bak
+*.blend.bak.meta
+
 # Optional: Uncomment if you don't want
 # to share Visual Studio workload settings
 # /.vsconfig
