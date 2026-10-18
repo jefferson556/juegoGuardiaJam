@@ -25,6 +25,10 @@ namespace Turno0313
         public Camera View => view;
         // True while the player is actually steering (cursor captured and nobody took control away).
         public bool HasControl => controlEnabled && Cursor.lockState == CursorLockMode.Locked;
+        // False while another system (alarm panel, monitors, menus) has taken the controls.
+        public bool ControlEnabled => controlEnabled;
+        public float Yaw => yaw;
+        public float Pitch => pitch;
         public bool IsRunning { get; private set; }
         public event Action<bool> Step;
 
@@ -101,10 +105,12 @@ namespace Turno0313
         }
 
         // Lets other systems (panel, monitors, menus) take the controls and the cursor.
-        public void SetControl(bool enabled)
+        // releaseCursor = false only freezes the player (fades, cutscenes) and leaves the cursor as it is.
+        public void SetControl(bool enabled, bool releaseCursor = true)
         {
             controlEnabled = enabled;
-            CaptureCursor(enabled);
+            if (enabled || releaseCursor)
+                CaptureCursor(enabled);
         }
 
         // For night resets and scripted moments: move without fighting the CharacterController.
