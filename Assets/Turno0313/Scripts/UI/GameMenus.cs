@@ -1,12 +1,11 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 namespace Turno0313
 {
-    // Title screen and pause menu (Esc / Start). Temporary OnGUI menus, like the rest of the HUD (Jefferson/Elvis
-    // can restyle them). The night only starts when the player presses Jugar. Runs between PlayerController (0)
-    // and the screens that close with Esc (100), so Esc only pauses while the player is walking around.
+    // Title screen and pause menu (Esc / Start), with the Piso 13 look shared by every menu in the game (MenuKit).
+    // The night only starts when the player presses Jugar. Runs between PlayerController (0) and the screens that
+    // close with Esc (100), so Esc only pauses while the player is walking around.
     [DefaultExecutionOrder(50)]
     public sealed class GameMenus : MonoBehaviour
     {
@@ -19,14 +18,16 @@ namespace Turno0313
         public bool OnTitle { get; private set; }
         public bool Paused { get; private set; }
 
-        static readonly string[] TitleItems = { "Jugar", "Salir" };
-        static readonly string[] PauseItems = { "Continuar", "Volver al título", "Salir" };
+        const string Controls = "WASD moverse · Shift correr · E interactuar · F linterna\nR o clic derecho reportar · Esc pausa\nMando: A interactuar · Y reportar · RB linterna · Start pausa";
 
-        int selected;
+        MenuKit kit;
         bool autoActivate = true;
-        GUIStyle titleStyle, subStyle, itemStyle, hintStyle;
 
-        void Awake() => Instance = this;
+        void Awake()
+        {
+            Instance = this;
+            kit = new MenuKit(gameObject);
+        }
 
         void Start()
         {
@@ -45,7 +46,8 @@ namespace Turno0313
         void ShowTitle()
         {
             OnTitle = true;
-            selected = 0;
+            kit.Reset();
+            kit.Music(true);
             var manager = AnomalyManager.Instance;
             if (manager)
             {
@@ -63,6 +65,7 @@ namespace Turno0313
             if (!OnTitle)
                 return;
             OnTitle = false;
+            kit.Music(false);
             var manager = AnomalyManager.Instance;
             if (manager)
             {
@@ -80,7 +83,7 @@ namespace Turno0313
             if (Paused == paused)
                 return;
             Paused = paused;
-            selected = 0;
+            kit.Reset();
             Time.timeScale = paused ? 0 : 1;
             AudioListener.pause = paused;
             if (PlayerController.Instance)
@@ -90,41 +93,14 @@ namespace Turno0313
         public void BackToTitle()
         {
             SetPaused(false);
-            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            SceneManager.LoadScene(MenuKit.TitleScene);
         }
 
-        public void Quit()
-        {
-#if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-#else
-            Application.Quit();
-#endif
-        }
-
-        void Choose(int item)
-        {
-            if (OnTitle)
-            {
-                if (item == 0)
-                    StartGame();
-                else
-                    Quit();
-                return;
-            }
-
-            if (item == 0)
-                SetPaused(false);
-            else if (item == 1)
-                BackToTitle();
-            else
-                Quit();
-        }
+        public void Quit() => MenuKit.Quit();
 
         void Update()
         {
-            var keyboard = Keyboard.current;
-            var pad = Gamepad.current;
+            kit.Tick();
             if (!OnTitle && !Paused)
             {
                 // Esc only pauses while nobody else (panel, cameras, a scene) has the controls.
@@ -134,22 +110,13 @@ namespace Turno0313
                 return;
             }
 
-            if (Paused && ((keyboard != null && keyboard.escapeKey.wasPressedThisFrame) || (pad != null && (pad.startButton.wasPressedThisFrame || pad.buttonEast.wasPressedThisFrame))))
+            if (Paused && MenuKit.BackPressed())
             {
                 SetPaused(false);
                 return;
             }
 
-            int count = OnTitle ? TitleItems.Length : PauseItems.Length;
-            bool up = (keyboard != null && (keyboard.upArrowKey.wasPressedThisFrame || keyboard.wKey.wasPressedThisFrame)) || (pad != null && pad.dpad.up.wasPressedThisFrame);
-            bool down = (keyboard != null && (keyboard.downArrowKey.wasPressedThisFrame || keyboard.sKey.wasPressedThisFrame)) || (pad != null && pad.dpad.down.wasPressedThisFrame);
-            if (up)
-                selected = (selected + count - 1) % count;
-            if (down)
-                selected = (selected + 1) % count;
-            bool confirm = (keyboard != null && (keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame)) || (pad != null && pad.buttonSouth.wasPressedThisFrame);
-            if (confirm)
-                Choose(selected);
+            kit.Navigate();
         }
 
         void OnGUI()
@@ -157,58 +124,23 @@ namespace Turno0313
             if (!OnTitle && !Paused)
                 return;
             GUI.depth = -40;
-            if (titleStyle == null)
-            {
-                titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 96, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white } };
-                subStyle = new GUIStyle(titleStyle) { fontSize = 24, fontStyle = FontStyle.Normal, normal = { textColor = new Color(.7f, .74f, .8f) } };
-                itemStyle = new GUIStyle(GUI.skin.button) { fontSize = 24 };
-                hintStyle = new GUIStyle(subStyle) { fontSize = 16, normal = { textColor = new Color(.58f, .62f, .68f) } };
-            }
-
-            float s = Screen.height / 1080f;
-            GUI.matrix = Matrix4x4.Scale(new Vector3(s, s, 1));
-            float w = Screen.width / s;
-            GUI.color = new Color(.01f, .015f, .02f, OnTitle ? .9f : .75f);
-            GUI.DrawTexture(new Rect(0, 0, w, 1080), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-
-            string[] items;
-            float y;
+            kit.Begin();
             if (OnTitle)
-            {
-                titleStyle.normal.textColor = new Color(1f, .25f, .16f);
-                GUI.Label(new Rect(0, 250, w, 120), "TURNO 03:13", titleStyle);
-                GUI.Label(new Rect(0, 370, w, 36), subtitle, subStyle);
-                GUI.Label(new Rect(0, 420, w, 30), tagline, hintStyle);
-                items = TitleItems;
-                y = 520;
-            }
+                TitleScreen();
             else
-            {
-                titleStyle.normal.textColor = Color.white;
-                GUI.Label(new Rect(0, 300, w, 120), "PAUSA", titleStyle);
-                items = PauseItems;
-                y = 460;
-            }
+                kit.PauseScreen(() => SetPaused(false), BackToTitle);
+            kit.End();
+        }
 
-            for (int i = 0; i < items.Length; i++)
-            {
-                var r = new Rect((w - 320) / 2, y + i * 70, 320, 54);
-                if (i == selected)
-                {
-                    GUI.color = new Color(.55f, 1f, .7f, .9f);
-                    GUI.DrawTexture(new Rect(r.x - 3, r.y - 3, r.width + 6, r.height + 6), Texture2D.whiteTexture);
-                    GUI.color = Color.white;
-                }
-
-                if (GUI.Button(r, items[i], itemStyle))
-                    Choose(i);
-            }
-
-            GUI.Label(new Rect(0, 1080 - 110, w, 60),
-                "WASD moverse · Shift correr · E interactuar · R o clic derecho reportar · F linterna · Esc pausa\nMando: sticks, A interactuar, Y reportar, RB linterna, Start pausa · Menú: ↑↓ y Enter, o A",
-                hintStyle);
-            GUI.matrix = Matrix4x4.identity;
+        void TitleScreen()
+        {
+            kit.CoverWithPanel(550);
+            kit.Title(new Rect(70, 90, 460, 90), "TURNO 03:13", MenuKit.TitleRed);
+            kit.Heading(new Rect(74, 178, 430, 32), subtitle);
+            kit.Text(new Rect(74, 214, 430, 60), tagline);
+            kit.Button(new Rect(70, 300, 390, 48), "Jugar", StartGame);
+            kit.Button(new Rect(70, 362, 390, 48), "Salir", Quit);
+            kit.Small(new Rect(74, 620, 450, 70), Controls);
         }
     }
 }

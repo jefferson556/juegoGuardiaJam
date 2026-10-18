@@ -92,8 +92,7 @@ namespace Piso13.Realidad
 
             if (Game.Phase == P13RealidadGame.GamePhase.Lost)
             {
-                // Pantalla de fin de turno tal cual en Piso 13
-                EndScreen();
+                // La pantalla de fin de turno la dibuja P13RealidadMenus (mismo estilo que los demás menús)
                 return;
             }
 
@@ -194,7 +193,7 @@ namespace Piso13.Realidad
             GUI.Label(new Rect(37, 614, 850, 30), objectiveText, body);
 
             // Controles (E puerta, R reportar, V CCTV)
-            GUI.Label(new Rect(37, 652, 850, 30), "E: puerta  ·  R: reportar anomalía  ·  V: CCTV  ·  F: linterna", small);
+            GUI.Label(new Rect(37, 652, 850, 30), "E: puerta  ·  R: reportar anomalía  ·  V: CCTV  ·  F: linterna  ·  Esc: pausa", small);
 
             // Mensajes temporales si los hay (Toast centrado y destacado)
             if (!string.IsNullOrEmpty(Game.NotificationMessage))
@@ -294,24 +293,6 @@ namespace Piso13.Realidad
                 var promptRect = new Rect(Width / 2 - 275, 530, 550, 42);
                 Panel(promptRect, 0.92f, new Color(0.40f, 0.08f, 0.08f, 0.92f));
                 GUI.Label(promptRect, Game.CurrentInteractionPrompt, body);
-            }
-        }
-
-        void EndScreen()
-        {
-            Panel(new Rect(0, 0, Width, Height), 0.94f);
-
-            GUI.Label(new Rect(170, 160, 840, 130), "FIN DEL TURNO", title);
-            GUI.Label(new Rect(175, 335, 800, 75), "El guardia te ha encontrado.", body);
-
-            if (GUI.Button(new Rect(175, 430, 420, 50), "REINTENTAR", button))
-            {
-                Game.RestartSession();
-            }
-
-            if (GUI.Button(new Rect(175, 495, 420, 50), "VOLVER A PISO 13", button))
-            {
-                Game.LoadPiso13();
             }
         }
     }

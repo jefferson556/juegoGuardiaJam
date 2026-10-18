@@ -24,6 +24,7 @@ namespace Piso13.Realidad
         public P13RealidadWorld World;
         public P13RealidadEnemy Enemy;
         public P13RealidadUI UI;
+        public P13RealidadMenus Menus { get; private set; }
         public P13RealidadAudio Audio;
 
         [Header("Jugador")]
@@ -122,6 +123,10 @@ namespace Piso13.Realidad
 
             UI = gameObject.AddComponent<P13RealidadUI>();
             UI.Game = this;
+
+            // Pausa y pantalla de fin, con el mismo estilo que los menús del resto del juego
+            Menus = gameObject.AddComponent<P13RealidadMenus>();
+            Menus.Game = this;
 
             StartGameSession();
         }
@@ -857,19 +862,12 @@ namespace Piso13.Realidad
                 CursorLock(true);
             }
 
-            if (toggleEsc)
+            // Fuera de las cámaras, Esc abre la pausa (P13RealidadMenus)
+            if (toggleEsc && CCTV)
             {
-                if (CCTV)
-                {
-                    CCTV = false;
-                    cctvLook = Vector2.zero;
-                    CursorLock(true);
-                }
-                else
-                {
-                    bool isLocked = Cursor.lockState == CursorLockMode.Locked;
-                    CursorLock(!isLocked);
-                }
+                CCTV = false;
+                cctvLook = Vector2.zero;
+                CursorLock(true);
             }
 
             if (toggleCCTV)
@@ -1540,14 +1538,14 @@ namespace Piso13.Realidad
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
 
-        public void LoadPiso13()
+        public void LoadMainMenu()
         {
             CursorLock(false);
             if (Audio != null)
             {
                 Audio.SetGameplay(false);
             }
-            SceneManager.LoadScene("Piso13");
+            SceneManager.LoadScene(Turno0313.MenuKit.TitleScene);
         }
 
         public void CursorLock(bool locked)
