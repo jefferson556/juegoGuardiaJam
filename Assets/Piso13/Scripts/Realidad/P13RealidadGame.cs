@@ -55,6 +55,7 @@ namespace Piso13.Realidad
         [Header("Referencias a Elementos del Mapa")]
         public P13CoffeeCup CoffeeCup;
         public P13PersonaEleganteAnomaly PersonaAnomaly;
+        public P13HumanMaskAnomaly HumanMaskAnomaly;
 
         [Header("Progresión de Anomalías")]
         public bool CoffeeAnomalyReported = false;
@@ -72,11 +73,15 @@ namespace Piso13.Realidad
 
         [Header("Configuración Teléfono Vintage Rojo")]
         [Tooltip("Posición del teléfono")]
-        public Vector3 PhonePosition = new Vector3(1.309f, 0.987f, 0.913f);
+        public Vector3 PhonePosition = new Vector3(1.216f, 0.677f, 0.081f);
         [Tooltip("Rotación en grados Euler del teléfono")]
         public Vector3 PhoneRotation = new Vector3(0f, 139.907f, 0f);
         [Tooltip("Escala del modelo de teléfono")]
         public Vector3 PhoneScale = new Vector3(0.5f, 0.5f, 0.5f);
+        [Tooltip("Distancia en metros para que el teléfono empiece a timbrar")]
+        public float PhoneTriggerDistance = 1.35f;
+        [Tooltip("Distancia en metros para que el teléfono deje de timbrar si te alejas")]
+        public float PhoneExitDistance = 1.9f;
         public P13VintagePhone VintagePhone { get; private set; }
         public bool IsPhoneCallActive { get; private set; }
         public bool IsPlayerMovementFrozen { get; private set; }
@@ -245,10 +250,16 @@ namespace Piso13.Realidad
                 SafeDestroy(Enemy.gameObject);
                 Enemy = null;
             }
+            foreach (var e in UnityEngine.Object.FindObjectsByType<P13RealidadEnemy>(FindObjectsInactive.Include))
+            {
+                SafeDestroy(e.gameObject);
+            }
             var oldEnemy = GameObject.Find("RealidadEnemy");
             if (oldEnemy != null) SafeDestroy(oldEnemy);
+            var testEnemy = GameObject.Find("TestEnemy");
+            if (testEnemy != null) SafeDestroy(testEnemy);
 
-            foreach (var n in new[] { "Clock_Pentagram", "Cafetera", "Taza_Cafe", "Persona_Elegante_CAM06", "Cama_Sola", "Telefono_Vintage_Rojo" })
+            foreach (var n in new[] { "Clock_Pentagram", "Cafetera", "Taza_Cafe", "Persona_Elegante_CAM06", "Cama_Sola", "Telefono_Vintage_Rojo", "Mascara_Diablo_Huma", "Mascara_Humana", "huma-mask" })
             {
                 GameObject obj;
                 while ((obj = GameObject.Find(n)) != null) SafeDestroy(obj);
@@ -397,7 +408,7 @@ namespace Piso13.Realidad
         {
             try
             {
-                // 1. Teléfono Vintage Rojo (no es hijo de nada, posición global 1.338, 0.575, 0.913)
+                // 1. Teléfono Vintage Rojo (no es hijo de nada, posición global PhonePosition: 1.216, 0.677, 0.081)
                 var phonePrefab = Resources.Load<GameObject>("Models/telefono vintage rojo");
                 if (phonePrefab != null)
                 {
@@ -418,6 +429,8 @@ namespace Piso13.Realidad
 
                     VintagePhone = phoneGo.AddComponent<P13VintagePhone>();
                     VintagePhone.Game = this;
+                    VintagePhone.ProximityDistance = PhoneTriggerDistance;
+                    VintagePhone.ExitDistance = PhoneExitDistance;
                     VintagePhone.SetupAudioSources();
                 }
 
@@ -552,6 +565,33 @@ namespace Piso13.Realidad
                     col.center = new Vector3(0f, 0.20f, 0.02f);
                     col.size = new Vector3(0.55f, 0.40f, 1.05f);
                 }
+
+                // 6. Máscara Humana (Anomalía que aparece en habitación, desaparece con linterna)
+                var maskPrefab = Resources.Load<GameObject>("Models/huma-mask");
+                if (maskPrefab != null)
+                {
+                    var maskGo = Instantiate(maskPrefab);
+                    maskGo.name = "Mascara_Diablo_Huma";
+                    StripBlenderJunk(maskGo);
+                    ApplyModelMaterial(maskGo, "M_MascaraDiabloHuma");
+
+                    if (World != null && World.Root != null) maskGo.transform.SetParent(World.Root, false);
+                    maskGo.transform.localScale = Vector3.one * 0.9f;
+
+                    var col = maskGo.GetComponent<BoxCollider>();
+                    if (col == null) col = maskGo.AddComponent<BoxCollider>();
+                    col.center = new Vector3(0f, 0f, 0f);
+                    col.size = new Vector3(0.9f, 1.0f, 0.8f);
+
+                    HumanMaskAnomaly = maskGo.GetComponent<P13HumanMaskAnomaly>();
+                    if (HumanMaskAnomaly == null) HumanMaskAnomaly = maskGo.AddComponent<P13HumanMaskAnomaly>();
+                    HumanMaskAnomaly.Game = this;
+                    HumanMaskAnomaly.DelayAfterWarning = 10f;
+                    HumanMaskAnomaly.SpawnBehindDistance = 1.95f;
+                    HumanMaskAnomaly.MaxReportDistance = 3.0f;
+                    HumanMaskAnomaly.InitDefaultSpawnPoints();
+                    HumanMaskAnomaly.SetVisuals(false);
+                }
             }
             catch (Exception ex)
             {
@@ -621,6 +661,13 @@ namespace Piso13.Realidad
             // =================================================================
             // FASE DE JUEGO ACTIVO (GamePhase.Playing)
             // =================================================================
+            // Mientras la advertencia esté en pantalla, TODO el juego se pausa por completo
+            if (ShowModal)
+            {
+                CheckModalCloseInput();
+                return;
+            }
+
             GameTime += dt;
 
             // Avance del reloj: 1 segundo real = 1 minuto de juego
@@ -638,30 +685,27 @@ namespace Piso13.Realidad
                 World.OfficeDoor.position += Vector3.right * Mathf.Sin(Time.unscaledTime * 61f) * DoorShake;
             }
 
-            // Temporizador de modal a los 30 segundos
-            if (!modalTriggered && GameTime >= 30f)
+            // Temporizador de modal de advertencia a los 15 segundos
+            if (!modalTriggered && GameTime >= 15.0f)
             {
                 TriggerAlertModal();
+                if (ShowModal)
+                {
+                    CheckModalCloseInput();
+                    return;
+                }
             }
 
-            if (ShowModal)
-            {
-                CheckModalCloseInput();
-                return;
-            }
-
-            // Barra de Realidad: descenso de 10% cada 5 segundos tras cerrar el modal
-            if (ModalDismissed)
+            // Barra de Realidad: descenso equilibrado de 10% cada 25 segundos tras cerrar el modal (se pausa si está en llamada telefónica)
+            if (ModalDismissed && !IsPhoneCallActive)
             {
                 realityTimer += dt;
-                if (realityTimer >= 5.0f)
+                if (realityTimer >= 2.5f)
                 {
-                    realityTimer -= 5.0f;
-                    Sleep = Mathf.Max(0f, Sleep - 10f);
-                    if (Sleep <= 0f && Phase == GamePhase.Playing)
-                    {
-                        TriggerCapture();
-                    }
+                    realityTimer -= 2.5f;
+                    Sleep = Mathf.Max(0f, Sleep - 1.0f);
+                    // Al llegar a 0% de Realidad, el enemigo adquiere persecución implacable al 100% de exactitud y +50% de velocidad.
+                    // Solo captura al jugador por contacto físico cercano (<1.6m).
                 }
             }
 
@@ -699,6 +743,11 @@ namespace Piso13.Realidad
                 Enemy.Tick(dt);
             }
 
+            if (HumanMaskAnomaly != null)
+            {
+                HumanMaskAnomaly.Tick(dt);
+            }
+
             // Actualizar vista y luces dinámicas
             UpdateCameraView(dt);
             if (World != null && View != null)
@@ -730,6 +779,14 @@ namespace Piso13.Realidad
             ShowModal = false;
             ModalDismissed = true;
             CursorLock(true);
+
+            ShowNotification("¡Te diste cuenta de que algo no encaja! Ahora puedes reportar anomalías con [R].", 4.0f);
+
+            // Iniciar la cuenta regresiva de 10 segundos para la Máscara Diablo Huma al desaparecer la advertencia
+            if (HumanMaskAnomaly != null)
+            {
+                HumanMaskAnomaly.OnAlertModalDismissed();
+            }
 
             // Despertar al enemigo para que empiece a patrullar y cazar
             if (Enemy != null)
@@ -876,7 +933,7 @@ namespace Piso13.Realidad
                 if (VintagePhone != null && VintagePhone.CanAnswer)
                 {
                     float distToPhone = Vector3.Distance(PlayerPosition, VintagePhone.transform.position);
-                    if (distToPhone <= VintagePhone.ProximityDistance + 1.2f)
+                    if (distToPhone <= VintagePhone.ProximityDistance + 0.25f)
                     {
                         if (VintagePhone.AnswerCall())
                         {
@@ -890,7 +947,7 @@ namespace Piso13.Realidad
                 {
                     Ray ray = new Ray(View.transform.position, View.transform.forward);
                     RaycastHit hit;
-                    if (Physics.Raycast(ray, out hit, 3.5f))
+                    if (Physics.Raycast(ray, out hit, 1.8f))
                     {
                         var phone = hit.collider.GetComponentInParent<P13VintagePhone>();
                         if (phone != null && phone.CanAnswer)
@@ -1026,7 +1083,7 @@ namespace Piso13.Realidad
             if (VintagePhone != null && VintagePhone.CanAnswer)
             {
                 float distToPhone = Vector3.Distance(PlayerPosition, VintagePhone.transform.position);
-                if (distToPhone <= VintagePhone.ProximityDistance + 1.2f)
+                if (distToPhone <= VintagePhone.ProximityDistance + 0.25f)
                 {
                     CurrentInteractionPrompt = "Teléfono: Presiona [E] para contestar";
                     return;
@@ -1035,11 +1092,12 @@ namespace Piso13.Realidad
 
             if (View != null)
             {
-                float checkDist = 2.6f;
+                float checkDist = 3.0f;
                 Ray ray = new Ray(View.transform.position, View.transform.forward);
                 RaycastHit hit;
                 bool hasHit = Physics.Raycast(ray, out hit, checkDist);
-                if (!hasHit || (hit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() == null &&
+                if (!hasHit || (hit.collider.GetComponentInParent<P13HumanMaskAnomaly>() == null &&
+                                hit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() == null &&
                                 hit.collider.GetComponentInParent<P13ReportableProp>() == null &&
                                 hit.collider.GetComponentInParent<P13CoffeeCup>() == null &&
                                 hit.collider.GetComponentInParent<P13Anomaly>() == null &&
@@ -1048,7 +1106,8 @@ namespace Piso13.Realidad
                     RaycastHit sHit;
                     if (Physics.SphereCast(ray, 0.25f, out sHit, checkDist))
                     {
-                        if (sHit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() != null ||
+                        if (sHit.collider.GetComponentInParent<P13HumanMaskAnomaly>() != null ||
+                            sHit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() != null ||
                             sHit.collider.GetComponentInParent<P13ReportableProp>() != null ||
                             sHit.collider.GetComponentInParent<P13CoffeeCup>() != null ||
                             sHit.collider.GetComponentInParent<P13Anomaly>() != null ||
@@ -1063,11 +1122,26 @@ namespace Piso13.Realidad
                 if (hasHit && hit.collider != null)
                 {
                     var phone = hit.collider.GetComponentInParent<P13VintagePhone>();
-                    if (phone != null && phone.CanAnswer)
+                    if (phone != null)
                     {
-                        CurrentInteractionPrompt = "Teléfono: Presiona [E] para contestar";
+                        if (phone.CanAnswer)
+                        {
+                            CurrentInteractionPrompt = "Teléfono: Presiona [E] para contestar";
+                            return;
+                        }
+                        if (phone.CanReport)
+                        {
+                            CurrentInteractionPrompt = phone.GetReportPrompt();
+                            return;
+                        }
+                    }
+                    var mask = hit.collider.GetComponentInParent<P13HumanMaskAnomaly>();
+                    if (mask != null && mask.HasSpawned && !mask.IsReported)
+                    {
+                        CurrentInteractionPrompt = mask.GetPrompt();
                         return;
                     }
+
                     var persona = hit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>();
                     if (persona != null && persona.HasSpawned && !persona.IsReported)
                     {
@@ -1105,20 +1179,40 @@ namespace Piso13.Realidad
         {
             if (View == null) return;
 
-            float reportDist = 2.5f;
+            // Restricción: No se pueden reportar anomalías hasta que pasen los 15 segundos y se cierre la advertencia
+            if (GameTime < 15.0f || !ModalDismissed)
+            {
+                int remaining = Mathf.CeilToInt(15.0f - GameTime);
+                if (remaining > 0)
+                {
+                    ShowNotification($"No puedes reportar todavía. Debes inspeccionar la zona ({remaining}s)", 2.5f);
+                }
+                else
+                {
+                    ShowNotification("Debes cerrar la advertencia para poder reportar.", 2.5f);
+                }
+                if (Audio != null) Audio.Spatial("P13_Door_Latch", PlayerPosition, 0.4f);
+                return;
+            }
+
+            float reportDist = 3.0f;
             Ray ray = new Ray(View.transform.position, View.transform.forward);
             RaycastHit hit;
             bool hitSomething = Physics.Raycast(ray, out hit, reportDist);
-            if (!hitSomething || (hit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() == null &&
+            if (!hitSomething || (hit.collider.GetComponentInParent<P13HumanMaskAnomaly>() == null &&
+                                 hit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() == null &&
                                  hit.collider.GetComponentInParent<P13ReportableProp>() == null &&
-                                 hit.collider.GetComponentInParent<P13Anomaly>() == null))
+                                 hit.collider.GetComponentInParent<P13Anomaly>() == null &&
+                                 hit.collider.GetComponentInParent<P13VintagePhone>() == null))
             {
                 RaycastHit sHit;
-                if (Physics.SphereCast(ray, 0.18f, out sHit, reportDist))
+                if (Physics.SphereCast(ray, 0.22f, out sHit, reportDist))
                 {
-                    if (sHit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() != null ||
+                    if (sHit.collider.GetComponentInParent<P13HumanMaskAnomaly>() != null ||
+                        sHit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() != null ||
                         sHit.collider.GetComponentInParent<P13ReportableProp>() != null ||
-                        sHit.collider.GetComponentInParent<P13Anomaly>() != null)
+                        sHit.collider.GetComponentInParent<P13Anomaly>() != null ||
+                        sHit.collider.GetComponentInParent<P13VintagePhone>() != null)
                     {
                         hit = sHit;
                         hitSomething = true;
@@ -1128,7 +1222,70 @@ namespace Piso13.Realidad
 
             if (hitSomething && hit.collider != null)
             {
-                // 1. Persona Elegante (aparecida en Servidores)
+                // 0. Máscara Diablo Huma (huma-mask)
+                var mask = hit.collider.GetComponentInParent<P13HumanMaskAnomaly>();
+                if (mask != null && mask.HasSpawned && !mask.IsReported)
+                {
+                    if (Flashlight)
+                    {
+                        ShowNotification("Debes apagar la linterna para reportar la Máscara Diablo Huma.", 3.0f);
+                        return;
+                    }
+                    if (hit.distance <= mask.MaxReportDistance)
+                    {
+                        mask.Report(this);
+                        return;
+                    }
+                    else
+                    {
+                        if (Audio != null) Audio.Spatial("P13_Door_Latch", PlayerPosition, 0.4f);
+                        ShowNotification("Estás demasiado lejos para identificar la anomalía. Acércate más.", 3.0f);
+                        return;
+                    }
+                }
+                // 1. Teléfono Vintage Rojo (no se puede reportar si está sonando o en llamada; solo tras contestar y colgar, y aplica penalización)
+                var phone = hit.collider.GetComponentInParent<P13VintagePhone>();
+                if (phone != null)
+                {
+                    if (hit.distance <= phone.MaxReportDistance)
+                    {
+                        if (phone.IsRinging || phone.CanAnswer)
+                        {
+                            Audio.Spatial("P13_Door_Latch", PlayerPosition, 0.4f);
+                            ShowNotification("El teléfono está sonando. Debes contestar la llamada con [E].", 3.0f);
+                            return;
+                        }
+                        else if (phone.IsCallInProgress)
+                        {
+                            ShowNotification("Llamada en curso...", 2.0f);
+                            return;
+                        }
+                        else if (!phone.HasAnswered)
+                        {
+                            Audio.Spatial("P13_Door_Latch", PlayerPosition, 0.4f);
+                            ShowNotification("No puedes reportar el teléfono antes de contestar.", 3.0f);
+                            return;
+                        }
+                        else if (phone.CanReport)
+                        {
+                            phone.ReportAsFakeAnomaly(this);
+                            return;
+                        }
+                        else if (phone.IsReported)
+                        {
+                            ShowNotification("Ya reportaste este objeto.", 2.5f);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        Audio.Spatial("P13_Door_Latch", PlayerPosition, 0.4f);
+                        ShowNotification("Estás demasiado lejos para identificar la anomalía. Acércate más.", 3.0f);
+                        return;
+                    }
+                }
+
+                // 2. Persona Elegante (aparecida en Servidores)
                 var persona = hit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>();
                 if (persona != null && persona.HasSpawned && !persona.IsReported)
                 {
@@ -1179,10 +1336,10 @@ namespace Piso13.Realidad
                         // Aumentar contador de realidad en 10%
                         Reality = Mathf.Min(100f, Reality + 10f);
 
-                        // Ralentizar al enemigo durante 10 segundos
+                        // Ralentizar al enemigo durante 15 segundos (-10% velocidad)
                         if (Enemy != null)
                         {
-                            Enemy.ApplySlow(10f, 0.5f);
+                            Enemy.OnAnomalyReported();
                         }
 
                         Audio.Spatial("P13_UI_Hover", PlayerPosition, 0.8f);
@@ -1219,7 +1376,7 @@ namespace Piso13.Realidad
 
             if (Enemy != null)
             {
-                Enemy.AlertNoise(PlayerPosition, 0.65f);
+                Enemy.OnFalseReport(PlayerPosition);
             }
         }
 
@@ -1299,7 +1456,7 @@ namespace Piso13.Realidad
             if (hand) hand.gameObject.SetActive(Flashlight);
 
             // Si contestó antes de que apareciera el cartel, recién ahí aparece tras terminar la llamada
-            if (pendingAlertModal || (!modalTriggered && GameTime >= 30f))
+            if (pendingAlertModal || (!modalTriggered && GameTime >= 15f))
             {
                 pendingAlertModal = false;
                 TriggerAlertModal();
@@ -1398,5 +1555,30 @@ namespace Piso13.Realidad
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !locked;
         }
+
+#if UNITY_EDITOR
+        void OnValidate()
+        {
+            if (VintagePhone != null)
+            {
+                VintagePhone.transform.position = PhonePosition;
+                VintagePhone.transform.rotation = Quaternion.Euler(PhoneRotation);
+                VintagePhone.transform.localScale = PhoneScale;
+                VintagePhone.ProximityDistance = PhoneTriggerDistance;
+                VintagePhone.ExitDistance = PhoneExitDistance;
+            }
+        }
+
+        void OnDrawGizmosSelected()
+        {
+            Gizmos.color = new Color(0.9f, 0.2f, 0.2f, 0.75f);
+            Gizmos.DrawWireCube(PhonePosition, PhoneScale);
+            Gizmos.DrawSphere(PhonePosition, 0.05f);
+
+            // Radio de activación del timbre
+            Gizmos.color = new Color(1f, 0.6f, 0.1f, 0.35f);
+            Gizmos.DrawWireSphere(PhonePosition, PhoneTriggerDistance);
+        }
+#endif
     }
 }

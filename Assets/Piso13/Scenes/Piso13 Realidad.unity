@@ -1677,13 +1677,16 @@ MonoBehaviour:
   DoorShake: 0
   CoffeeCup: {fileID: 0}
   PersonaAnomaly: {fileID: 0}
+  HumanMaskAnomaly: {fileID: 0}
   CoffeeAnomalyReported: 0
   ClockAnomalyPosition: {x: 2.66, y: 2.05, z: -1.6}
   ClockAnomalyRotation: {x: 0, y: -90, z: 0}
   ClockAnomalyScale: {x: 1, y: 1, z: 1}
-  PhonePosition: {x: 1.338, y: 0.8, z: 0.913}
+  PhonePosition: {x: 1.008, y: 0.781, z: 0.974}
   PhoneRotation: {x: 0, y: 139.907, z: 0}
   PhoneScale: {x: 0.5, y: 0.5, z: 0.5}
+  PhoneTriggerDistance: 1.35
+  PhoneExitDistance: 1.9
 --- !u!114 &1004
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2385,72 +2388,6 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
---- !u!1 &403369129
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 403369131}
-  - component: {fileID: 403369130}
-  m_Layer: 0
-  m_Name: TestEnemy
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &403369130
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 403369129}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 568faaedf1e54954ca339f62741883be, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Piso13.Realidad.P13RealidadEnemy
-  Game: {fileID: 721208541}
-  Root: {fileID: 0}
-  Visual: {fileID: 0}
-  Anim: {fileID: 0}
-  Position: {x: 6.8, y: 0.8, z: 6.2}
-  Yaw: 180
-  modelName: MonsterGuard
-  characterHeight: 2.22
-  defaultSpawnPosition: {x: 6.8, y: 0.8, z: 6.2}
-  defaultSpawnYaw: 180
-  State: 0
-  IsHunting: 0
-  SeesPlayer: 0
-  Alert: 0
-  Speed: 0
-  HasActiveEvent: 0
-  ActiveEventId: 
-  EventTargetPos: {x: 0, y: 0, z: 0}
-  EventTimer: 0
-  EventSpeedMultiplier: 1
-  SlowTimer: 0
-  SlowMultiplier: 0.5
---- !u!4 &403369131
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 403369129}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &492202653
 GameObject:
   m_ObjectHideFlags: 0
@@ -2838,98 +2775,6 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
---- !u!1 &721208540
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 721208542}
-  - component: {fileID: 721208541}
-  m_Layer: 0
-  m_Name: TestGameSession
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &721208541
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 721208540}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8384e72d87a21774385ee4422569df6e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Piso13.Realidad.P13RealidadGame
-  Data:
-    walls: []
-    furniture: []
-    floor12: []
-    officeDoor:
-      minX: 0
-      maxX: 0
-      minZ: 0
-      maxZ: 0
-      height: 0
-    cameras: []
-    doors: []
-    rooms12: []
-    narrative: []
-    journal: []
-    routes: []
-  Enemy: {fileID: 403369130}
-  UI: {fileID: 0}
-  Audio: {fileID: 0}
-  View: {fileID: 0}
-  PlayerPosition: {x: 0, y: 0, z: 0}
-  Yaw: 180
-  Pitch: 0
-  EyeHeight: 1.65
-  Flashlight: 1
-  Crouched: 0
-  IsSprinting: 0
-  Phase: 0
-  GameTime: 0
-  Minute: 0
-  Energy: 100
-  Sleep: 100
-  ShowModal: 1
-  ModalDismissed: 0
-  CCTV: 0
-  CameraIndex: 0
-  NotificationMessage: 
-  CurrentInteractionPrompt: 
-  DoorShake: 0
-  CoffeeCup: {fileID: 0}
-  PersonaAnomaly: {fileID: 0}
-  CoffeeAnomalyReported: 0
-  ClockAnomalyPosition: {x: 2.66, y: 2.05, z: -1.6}
-  ClockAnomalyRotation: {x: 0, y: -90, z: 0}
-  ClockAnomalyScale: {x: 1, y: 1, z: 1}
-  PhonePosition: {x: 1.338, y: 0.575, z: 0.913}
-  PhoneRotation: {x: 0, y: 139.907, z: 0}
-  PhoneScale: {x: 0.5, y: 0.5, z: 0.5}
---- !u!4 &721208542
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 721208540}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &841472473
 GameObject:
   m_ObjectHideFlags: 0
@@ -4226,5 +4071,3 @@ SceneRoots:
   m_Roots:
   - {fileID: 1001}
   - {fileID: 110709933}
-  - {fileID: 721208542}
-  - {fileID: 403369131}

@@ -229,7 +229,7 @@ namespace Piso13.Realidad
             GUI.Label(new Rect(dialogRect.x + 20, dialogRect.y + 28, dialogRect.width - 40, 45), "ADVERTENCIA", warningTitle);
 
             // Mensaje requerido
-            string msg = "La anomalía te está cazando, si no encuentras lo que está mal no saldrás nunca más de aquí.";
+            string msg = "Algo no encaja en este lugar... La anomalía te está cazando. Si no encuentras lo que está mal no saldrás nunca más de aquí.";
             GUI.Label(new Rect(dialogRect.x + 40, dialogRect.y + 90, dialogRect.width - 80, 110), msg, modalBody);
 
             // Botón interactivo de cierre

@@ -10,6 +10,7 @@ namespace Piso13.Realidad
         public float effects = 1f;
         public float voices = 1f;
         public float music = 0.8f;
+        public float ambience = 1f;
         public float sensitivity = 1.6f;
         public bool invertY = false;
         public bool subtitles = true;

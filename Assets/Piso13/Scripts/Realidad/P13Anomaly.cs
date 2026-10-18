@@ -50,10 +50,10 @@ namespace Piso13.Realidad
                 gameObject.SetActive(false);
             }
 
-            // Alertar al enemigo a través del sistema de eventos
+            // Notificar al enemigo para aplicar ralentización por reporte
             if (P13RealidadGame.Instance != null && P13RealidadGame.Instance.Enemy != null)
             {
-                P13RealidadGame.Instance.Enemy.TriggerMapEvent(AnomalyId, transform.position, EnemySpeedMultiplier, AlertDuration);
+                P13RealidadGame.Instance.Enemy.OnAnomalyReported();
             }
 
             return true;

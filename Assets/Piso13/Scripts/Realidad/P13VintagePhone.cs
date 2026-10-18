@@ -16,8 +16,8 @@ namespace Piso13.Realidad
         public P13RealidadGame Game;
 
         [Header("Distancias de Proximidad")]
-        public float ProximityDistance = 2.5f;
-        public float ExitDistance = 3.0f;
+        public float ProximityDistance = 1.35f;
+        public float ExitDistance = 1.9f;
 
         [Header("Clips de Audio")]
         public AudioClip RingClip;
@@ -31,10 +31,16 @@ namespace Piso13.Realidad
         private bool isRinging = false;
         private bool isCallInProgress = false;
 
+        [Header("Reporte de Falsa Anomalía")]
+        public float MaxReportDistance = 2.5f;
+        public float FalseAlarmPenalty = 10f;
+        public bool IsReported { get; private set; } = false;
+
         public bool HasAnswered => hasAnswered;
         public bool IsRinging => isRinging;
         public bool IsCallInProgress => isCallInProgress;
         public bool CanAnswer => isRinging && !isCallInProgress && !hasAnswered;
+        public bool CanReport => hasAnswered && !isCallInProgress && !IsReported;
 
         void Awake()
         {
@@ -175,6 +181,34 @@ namespace Piso13.Realidad
             }
 
             isCallInProgress = false;
+        }
+
+        public string GetReportPrompt()
+        {
+            return "Teléfono Vintage: ¿Deseas reportar que encontraste una anomalía? [R]";
+        }
+
+        public void ReportAsFakeAnomaly(P13RealidadGame game)
+        {
+            if (!CanReport || game == null) return;
+
+            IsReported = true;
+
+            // Penalización por falsa alarma (10% de Realidad/Sueño)
+            float penalty = FalseAlarmPenalty;
+            game.Reality = Mathf.Max(0f, game.Reality - penalty);
+
+            if (game.Audio != null)
+            {
+                game.Audio.Spatial("P13_Door_Latch", transform.position, 0.6f);
+            }
+
+            game.ShowNotification(string.Format("FALSA ALARMA: El teléfono vintage no es una anomalía (-10% Realidad: {0}%)", Mathf.CeilToInt(game.Reality)), 3.5f);
+
+            if (game.Enemy != null)
+            {
+                game.Enemy.OnFalseReport(transform.position);
+            }
         }
 
         void OnDestroy()

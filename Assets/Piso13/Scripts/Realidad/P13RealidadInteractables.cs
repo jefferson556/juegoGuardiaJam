@@ -220,7 +220,7 @@ namespace Piso13.Realidad
 
                 if (game.Enemy != null)
                 {
-                    game.Enemy.AlertNoise(transform.position, 0.6f);
+                    game.Enemy.OnFalseReport(transform.position);
                 }
             }
         }
@@ -280,8 +280,7 @@ namespace Piso13.Realidad
                 game.Reality = Mathf.Min(100f, game.Reality + 10f);
                 if (game.Enemy != null)
                 {
-                    game.Enemy.ApplySlow(10f, 0.5f);
-                    game.Enemy.TriggerMapEvent("Sujeto_Servidores", transform.position, 1.0f, 10f);
+                    game.Enemy.OnAnomalyReported();
                 }
 
                 if (game.Audio != null)

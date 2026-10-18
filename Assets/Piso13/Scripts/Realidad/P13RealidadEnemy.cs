@@ -50,6 +50,10 @@ namespace Piso13.Realidad
         public float SlowTimer = 0f;
         public float SlowMultiplier = 0.5f;
 
+        [Header("Penalización por Reporte Incorrecto")]
+        public float SpeedBoostTimer = 0f;
+        public float SpeedBoostMultiplier = 1.25f;
+
         public static Action<string, Vector3, float> OnGlobalMapEvent;
 
         // Nodos del mapa idénticos a P13Guard en Piso 13
@@ -80,8 +84,8 @@ namespace Piso13.Realidad
         };
 
         P13RealidadNavigation navigation;
-        List<Vector3> route = new List<Vector3>();
-        int routeIndex = 0;
+        P13EnemyNavigator navigator;
+        P13EnemyPerception perception;
         int location = 8;
         int destination = 8;
         Vector3? memory = null;
@@ -95,6 +99,7 @@ namespace Piso13.Realidad
         float confidence = 0f;
         float lastSeen = -999f;
         float lastHeard = -999f;
+        float investigateWaitTimer = 0f;
 
         void Awake()
         {
@@ -165,6 +170,10 @@ namespace Piso13.Realidad
             destination = 8;
             State = RealidadEnemyState.Dormant;
             IsHunting = false;
+            memory = null;
+            SlowTimer = 0f;
+            SpeedBoostTimer = 0f;
+            if (navigator != null) navigator.ClearPath();
             Publish();
         }
 
@@ -172,6 +181,11 @@ namespace Piso13.Realidad
         {
             if (world == null) return;
             navigation = new P13RealidadNavigation(world);
+            navigator = new P13EnemyNavigator(world, navigation);
+            if (Game != null)
+            {
+                perception = new P13EnemyPerception(Game, navigation);
+            }
             if (navigation != null)
             {
                 Position = navigation.Safe(Position);
@@ -183,8 +197,12 @@ namespace Piso13.Realidad
         {
             IsHunting = true;
             State = RealidadEnemyState.Patrolling;
-            decisionTimer = 1.5f;
-            PickNextDestination();
+            decisionTimer = 10.0f; // Pausa inicial prudente de 10s en el punto de spawn (Almacén)
+            memory = null;
+            confidence = 0f;
+            Alert = 0f;
+            SeesPlayer = false;
+            if (navigator != null) navigator.ClearPath();
         }
 
         // =====================================================================
@@ -206,6 +224,7 @@ namespace Piso13.Realidad
             if (IsHunting && State != RealidadEnemyState.AtDoor)
             {
                 State = RealidadEnemyState.Investigating;
+                investigateWaitTimer = 2.5f;
                 memory = eventPosition;
                 RouteTo(eventPosition);
             }
@@ -224,6 +243,7 @@ namespace Piso13.Realidad
                 if (State != RealidadEnemyState.Hunting)
                 {
                     State = RealidadEnemyState.Investigating;
+                    investigateWaitTimer = 2.0f;
                     RouteTo(noisePos);
                 }
             }
@@ -237,11 +257,30 @@ namespace Piso13.Realidad
             EventTimer = 0f;
         }
 
-        public void ApplySlow(float duration = 10f, float multiplier = 0.5f)
+        public void ApplySlow(float duration = 15f, float multiplier = 0.9f)
         {
             SlowTimer = duration;
             SlowMultiplier = Mathf.Clamp(multiplier, 0.1f, 1f);
             Debug.Log($"[RealidadEnemy] Ralentizado a x{SlowMultiplier:F2} durante {SlowTimer:F1}s tras reporte de anomalía");
+        }
+
+        public void OnAnomalyReported()
+        {
+            ApplySlow(15f, 0.9f);
+        }
+
+        public void ApplySpeedBoost(float duration = 5f, float multiplier = 1.25f)
+        {
+            SpeedBoostTimer = duration;
+            SpeedBoostMultiplier = Mathf.Max(1.0f, multiplier);
+            SlowTimer = 0f; // Cancela cualquier ralentización previa
+            Debug.Log($"[RealidadEnemy] Acelerado a x{SpeedBoostMultiplier:F2} durante {SpeedBoostTimer:F1}s por reporte incorrecto (penalización)");
+        }
+
+        public void OnFalseReport(Vector3 reportPosition)
+        {
+            ApplySpeedBoost(5f, 1.25f);
+            AlertNoise(reportPosition, 0.75f);
         }
 
         // =====================================================================
@@ -250,7 +289,7 @@ namespace Piso13.Realidad
 
         void PickNextDestination()
         {
-            if (navigation == null) return;
+            if (navigator == null) return;
 
             if (HasActiveEvent && EventTimer > 0)
             {
@@ -258,24 +297,44 @@ namespace Piso13.Realidad
                 return;
             }
 
+            int next = -1;
             if (neighbors != null && location >= 0 && location < neighbors.Length)
             {
-                var choices = neighbors[location];
-                destination = choices[UnityEngine.Random.Range(0, choices.Length)];
-                RouteTo(destinations[destination]);
+                var choices = new List<int>(neighbors[location]);
+
+                // Durante los primeros 120s o mientras la realidad sea alta (>= 50%),
+                // evitar patrullar al nodo 4 (Archivo / Dormitorio donde despierta el jugador)
+                // para que el enemigo no vaya directo a su cama al inicio.
+                bool realityHigh = Game == null || Game.Sleep >= 50f;
+                bool earlyGame = clock < 120f;
+                if ((realityHigh || earlyGame) && choices.Count > 1)
+                {
+                    choices.Remove(4); // Excluir Archivo (dormitorio del jugador)
+                }
+
+                if (choices.Count > 0)
+                {
+                    next = choices[UnityEngine.Random.Range(0, choices.Count)];
+                }
             }
-            else
+
+            if (next < 0)
             {
-                destination = UnityEngine.Random.Range(0, destinations.Length);
-                RouteTo(destinations[destination]);
+                next = UnityEngine.Random.Range(0, destinations.Length);
+                if ((Game == null || Game.Sleep >= 50f || clock < 120f) && next == 4)
+                {
+                    next = 8; // Reemplazar por Almacén si cayó en 4
+                }
             }
+
+            destination = next;
+            RouteTo(destinations[destination]);
         }
 
         void RouteTo(Vector3 goal)
         {
-            if (navigation == null) return;
-            route = navigation.Path(Position, goal);
-            routeIndex = 0;
+            if (navigator == null) return;
+            navigator.SetDestination(goal, Position, true);
         }
 
         // =====================================================================
@@ -285,8 +344,12 @@ namespace Piso13.Realidad
         public void Tick(float dt)
         {
             clock += dt;
-            replanTimer -= dt;
-            decisionTimer -= dt;
+
+            // Inicialización tardía de percepción si no existía
+            if (perception == null && Game != null && navigation != null)
+            {
+                perception = new P13EnemyPerception(Game, navigation);
+            }
 
             var eye = Position + Vector3.up * 1.2f;
             var playerTarget = Game != null ? (Game.PlayerPosition + Vector3.up * (Game.EyeHeight - 0.8f)) : Position;
@@ -295,10 +358,10 @@ namespace Piso13.Realidad
             float distance = flat.magnitude;
             var forward = Quaternion.Euler(0, Yaw, 0) * Vector3.forward;
 
-            // Detección visual tal cual en Piso 13
+            // Detección de visión directa
             bool clearSight = Game != null && Game.World != null && Game.World.Clear(eye, playerTarget);
 
-            // Si el jugador entra en contacto cercano con el monstruo (incluso si está en reposo), es atrapado
+            // Captura por proximidad física (contacto)
             if (distance < 1.6f && clearSight)
             {
                 if (Game != null && Game.Phase == P13RealidadGame.GamePhase.Playing)
@@ -316,7 +379,7 @@ namespace Piso13.Realidad
                 }
             }
 
-            // Si está dormido (primeros 30s)
+            // Si está dormido (primeros segundos antes de cerrar la advertencia)
             if (!IsHunting || State == RealidadEnemyState.Dormant)
             {
                 Speed = 0f;
@@ -332,50 +395,100 @@ namespace Piso13.Realidad
                 if (EventTimer <= 0) ClearMapEvent();
             }
 
-            SeesPlayer = distance < (Game != null && Game.Crouched ? 5.5f : 11f) &&
-                         (distance < 0.8f || Vector3.Dot(forward, flat.normalized) >= Mathf.Cos(Mathf.PI * (Game != null && Game.Crouched ? 0.25f : 0.3f))) &&
+            // 1. Evaluación de percepción según la barra de Realidad
+            Vector3? perceptionTarget = null;
+            bool forcePermanentHunt = false;
+            float realitySpeedMultiplier = 1.0f;
+            if (perception != null)
+            {
+                perception.Tick(dt, out perceptionTarget, out forcePermanentHunt, out realitySpeedMultiplier);
+            }
+
+            // 2. Visión del jugador
+            // En la misma habitación el alcance es de 7.0m; a través de umbrales entre distintas salas se limita a 4.5m
+            int playerRoom = Game != null ? P13RealidadRules.Room(Game.PlayerPosition) : 0;
+            int enemyRoom = P13RealidadRules.Room(Position);
+            bool sameRoom = playerRoom == enemyRoom;
+            float baseMaxDist = sameRoom ? 7.0f : 4.5f;
+            float maxVisionDist = (Game != null && Game.Crouched) ? Mathf.Min(baseMaxDist, 3.8f) : baseMaxDist;
+            float visionAngleCos = Mathf.Cos(Mathf.PI * ((Game != null && Game.Crouched) ? 0.22f : 0.28f));
+            SeesPlayer = distance < maxVisionDist &&
+                         (distance < 0.8f || Vector3.Dot(forward, flat.normalized) >= visionAngleCos) &&
                          clearSight;
 
             if (SeesPlayer)
             {
-                confidence = Mathf.Min(1f, confidence + dt * (Game != null && Game.Crouched && distance > 1.2f ? 0.8f : 3.5f));
+                // A mayor distancia, el enemigo tarda más en confirmar lo que vio
+                float confidenceRate;
+                if (distance < 2.0f)
+                {
+                    confidenceRate = 3.5f; // A quemarropa la reacción es inmediata
+                }
+                else if (distance < 4.5f)
+                {
+                    confidenceRate = (Game != null && Game.Crouched) ? 0.7f : 1.8f;
+                }
+                else
+                {
+                    confidenceRate = (Game != null && Game.Crouched) ? 0.35f : 0.9f;
+                }
+
+                confidence = Mathf.Min(1f, confidence + dt * confidenceRate);
                 lastSeen = clock;
-                memory = Game != null ? Game.PlayerPosition : Position;
-                Alert = Mathf.Min(100f, Alert + dt * (Game != null && Game.Crouched ? 30f : 95f));
+                Alert = Mathf.Min(100f, Alert + dt * (Game != null && Game.Crouched ? 25f : 65f));
+
+                // Solo fija la posición en memoria si superó el umbral de sospecha (0.35f) o si está muy cerca
+                if (confidence >= 0.35f || distance < 2.0f)
+                {
+                    memory = Game != null ? Game.PlayerPosition : Position;
+                }
 
                 if (State != RealidadEnemyState.AtDoor && State != RealidadEnemyState.Retreating)
                 {
-                    State = confidence >= 0.4f ? RealidadEnemyState.Hunting : RealidadEnemyState.Investigating;
+                    // Si confianza >= 0.85f o a quemarropa (< 2.5m): entra en cacería (Hunting)
+                    // Si confianza >= 0.35f: entra en sospecha/investigación (Investigating)
+                    if (confidence >= 0.85f || distance < 2.5f)
+                    {
+                        State = RealidadEnemyState.Hunting;
+                    }
+                    else if (confidence >= 0.35f && State != RealidadEnemyState.Hunting)
+                    {
+                        State = RealidadEnemyState.Investigating;
+                    }
                 }
             }
             else
             {
-                confidence = Mathf.Max(0f, confidence - dt * 1.5f);
-                Alert = Mathf.Max(0f, Alert - dt * 4f);
-                if (State == RealidadEnemyState.Hunting && clock - lastSeen > 1.8f)
+                if (!forcePermanentHunt)
                 {
-                    State = RealidadEnemyState.Investigating;
+                    confidence = Mathf.Max(0f, confidence - dt * 1.2f);
+                    Alert = Mathf.Max(0f, Alert - dt * 4f);
+                    if (State == RealidadEnemyState.Hunting && clock - lastSeen > 1.8f)
+                    {
+                        State = RealidadEnemyState.Investigating;
+                        investigateWaitTimer = 2.0f;
+                    }
                 }
             }
 
-            // =================================================================
-            // CAPTURA: Cuando el enemigo alcanza al jugador a distancia de contacto
-            // =================================================================
-            if (distance < 1.6f && clearSight)
+            // Si la barra llega a 0: cacería permanente implacable
+            if (forcePermanentHunt)
             {
-                if (Game != null && Game.Phase == P13RealidadGame.GamePhase.Playing)
+                if (State != RealidadEnemyState.AtDoor && State != RealidadEnemyState.Retreating)
                 {
-                    // Orientar de inmediato al enemigo hacia el jugador para contacto cara a cara
-                    var toPlayer = (Game.PlayerPosition - Position);
-                    toPlayer.y = 0;
-                    if (toPlayer.sqrMagnitude > 0.001f)
-                    {
-                        Yaw = Mathf.Atan2(toPlayer.x, toPlayer.z) * Mathf.Rad2Deg;
-                        Publish();
-                    }
-
-                    Game.TriggerCapture();
-                    return;
+                    State = RealidadEnemyState.Hunting;
+                }
+                memory = Game != null ? Game.PlayerPosition : Position;
+            }
+            // O si hay ping de percepción (realidad < 50%) y no ve al jugador directamente
+            else if (perceptionTarget.HasValue && !SeesPlayer && State != RealidadEnemyState.AtDoor && State != RealidadEnemyState.Retreating)
+            {
+                memory = perceptionTarget.Value;
+                if (State != RealidadEnemyState.Hunting)
+                {
+                    State = RealidadEnemyState.Investigating;
+                    investigateWaitTimer = 2.0f;
+                    RouteTo(perceptionTarget.Value);
                 }
             }
 
@@ -423,110 +536,162 @@ namespace Piso13.Realidad
             }
 
             // =================================================================
-            // LÓGICA DE DESTINO Y PERSECUCIÓN
+            // LÓGICA DE DESTINO SEGÚN ESTADO
             // =================================================================
-            // Si ve directamente al jugador y puede caminar hacia él sin obstáculos intermedios
-            if (SeesPlayer && Game != null && Game.World != null && Game.World.Clear(Position, Game.PlayerPosition, 0.38f, true))
+            if (State == RealidadEnemyState.Hunting)
             {
-                route.Clear();
-                route.Add(Game.PlayerPosition);
-                routeIndex = 0;
-            }
-            else if ((State == RealidadEnemyState.Hunting || State == RealidadEnemyState.Investigating) && memory.HasValue && replanTimer <= 0f)
-            {
-                replanTimer = 0.5f;
-                var remembered = memory.Value;
-                bool office = Mathf.Abs(remembered.x) < 2.6f && Mathf.Abs(remembered.z) < 2.6f;
+                // Si perdió de vista al jugador y no hay memoria de su posición, regresa a patrullar
+                if (!forcePermanentHunt && !SeesPlayer && !memory.HasValue)
+                {
+                    State = RealidadEnemyState.Patrolling;
+                    decisionTimer = 2.0f;
+                    PickNextDestination();
+                    Publish();
+                    return;
+                }
+
+                // Solo si tiene visión directa o persecución forzada por realidad=0% sigue la posición en tiempo real.
+                // Si perdió de vista al jugador, persigue el último punto donde lo vio (memory).
+                Vector3 target;
+                if (forcePermanentHunt || SeesPlayer)
+                {
+                    target = Game != null ? Game.PlayerPosition : Position;
+                }
+                else
+                {
+                    target = memory.Value;
+                }
+
+                if (!SeesPlayer && !forcePermanentHunt && memory.HasValue && navigator != null && navigator.ReachedDestination)
+                {
+                    State = RealidadEnemyState.Investigating;
+                    investigateWaitTimer = 2.5f;
+                    memory = null;
+                }
+
+                bool office = Mathf.Abs(target.x) < 2.6f && Mathf.Abs(target.z) < 2.6f;
                 bool approachDoor = Game != null && Game.World != null && Game.World.DoorClosed && office && Position.z < -3.4f;
 
-                RouteTo(approachDoor ? destinations[9] : remembered);
-                destination = approachDoor ? 9 : -1;
-            }
-
-            // Si patrulla y terminó la ruta, decidir siguiente habitación
-            if (State == RealidadEnemyState.Patrolling && routeIndex >= route.Count && decisionTimer <= 0f)
-            {
-                decisionTimer = 4.5f;
-                PickNextDestination();
-            }
-
-            // =================================================================
-            // MOVIMIENTO
-            // =================================================================
-            bool moving = routeIndex < route.Count;
-            if (moving)
-            {
-                var goal = route[routeIndex];
-                var d = goal - Position;
-                d.y = 0;
-
-                if (d.magnitude < 0.2f)
+                if (approachDoor)
                 {
-                    routeIndex++;
-                    if (routeIndex >= route.Count)
+                    destination = 9;
+                    if (Vector3.Distance(Position, destinations[9]) < 0.6f)
                     {
-                        location = destination >= 0 ? destination : location;
+                        State = RealidadEnemyState.AtDoor;
+                        doorTimer = 5.0f;
+                        if (navigator != null) navigator.ClearPath();
+                        if (Game != null && Game.Audio != null) Game.Audio.Spatial("knock", Position, 0.8f);
+                        if (Game != null) Game.DoorShake = 0.12f;
+                        return;
+                    }
+                    else
+                    {
+                        if (navigator != null) navigator.SetDestination(destinations[9], Position);
+                    }
+                }
+                else
+                {
+                    destination = -1;
+                    if (navigator != null) navigator.SetDestination(target, Position);
+                }
+            }
+            else if (State == RealidadEnemyState.Investigating)
+            {
+                if (memory.HasValue)
+                {
+                    if (navigator != null) navigator.SetDestination(memory.Value, Position);
 
-                        // Si llegó a la puerta de la oficina y está cerrada
-                        if (destination == 9 && Game != null && Game.World != null && Game.World.DoorClosed)
+                    if (navigator != null && navigator.ReachedDestination)
+                    {
+                        investigateWaitTimer -= dt;
+                        if (investigateWaitTimer <= 0f)
                         {
-                            State = RealidadEnemyState.AtDoor;
-                            doorTimer = 5.0f;
-                            if (Game.Audio != null) Game.Audio.Spatial("knock", Position, 0.8f);
-                            if (Game != null) Game.DoorShake = 0.12f;
-                            return;
-                        }
-
-                        if (State == RealidadEnemyState.Retreating)
-                        {
+                            memory = null;
                             State = RealidadEnemyState.Patrolling;
+                            decisionTimer = 1.0f;
+                            PickNextDestination();
                         }
                     }
                 }
                 else
                 {
-                    // Velocidades moduladas
-                    float sleepNorm = Game != null ? Mathf.Clamp01(Game.Sleep / 100f) : 1f;
-                    float baseSpeed = State == RealidadEnemyState.Hunting ? Mathf.Lerp(2.2f, 1.4f, sleepNorm) :
-                                      State == RealidadEnemyState.Investigating ? 1.15f : 0.85f;
-
-                    float desiredSpeed = baseSpeed * (HasActiveEvent ? EventSpeedMultiplier : 1f);
-                    if (SlowTimer > 0f)
-                    {
-                        SlowTimer -= dt;
-                        desiredSpeed = baseSpeed * SlowMultiplier;
-                    }
-                    Speed = Mathf.MoveTowards(Speed, desiredSpeed, dt * 2.5f);
-
-                    var next = Position + d.normalized * Mathf.Min(d.magnitude, Speed * dt);
-
-                    if (Game != null && Game.World != null && Game.World.Clear(Position, next, 0.38f, true))
-                    {
-                        Position = next;
-                    }
-                    else
-                    {
-                        route.Clear();
-                        replanTimer = 0f;
-                    }
-
-                    Yaw = Mathf.MoveTowardsAngle(Yaw, Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, dt * 170f);
-
-                    // Pasos de audio
-                    float travelled = d.normalized.magnitude * Mathf.Min(d.magnitude, Speed * dt);
-                    stepDistance += travelled;
-                    if (stepDistance > 0.75f)
-                    {
-                        stepDistance = 0f;
-                        if (Game != null && Game.Audio != null)
-                        {
-                            Game.Audio.Spatial("guard_step", Position, 0.5f);
-                        }
-                    }
-
-                    string animName = State == RealidadEnemyState.Hunting ? "run" : State == RealidadEnemyState.Investigating ? "walk" : "patrol";
-                    PlayAnimation(animName, Mathf.Clamp(Speed / (State == RealidadEnemyState.Hunting ? 2.2f : 0.85f), 0.7f, 1.5f));
+                    State = RealidadEnemyState.Patrolling;
+                    decisionTimer = 1.0f;
+                    PickNextDestination();
                 }
+            }
+            else if (State == RealidadEnemyState.Patrolling)
+            {
+                if (navigator != null && (navigator.ReachedDestination || !navigator.HasPath))
+                {
+                    decisionTimer -= dt;
+                    if (decisionTimer <= 0f)
+                    {
+                        location = destination >= 0 ? destination : location;
+                        decisionTimer = UnityEngine.Random.Range(3.5f, 6.0f);
+                        PickNextDestination();
+                    }
+                }
+            }
+            else if (State == RealidadEnemyState.Retreating)
+            {
+                if (navigator != null && navigator.ReachedDestination)
+                {
+                    State = RealidadEnemyState.Patrolling;
+                    decisionTimer = 1.5f;
+                    PickNextDestination();
+                }
+            }
+
+            // =================================================================
+            // CÁLCULO DE VELOCIDAD Y MOVIMIENTO
+            // =================================================================
+            float sleepNorm = Game != null ? Mathf.Clamp01(Game.Sleep / 100f) : 1f;
+            float baseSpeed = State == RealidadEnemyState.Hunting ? Mathf.Lerp(2.2f, 1.4f, sleepNorm) :
+                              State == RealidadEnemyState.Investigating ? 1.25f : 0.95f;
+
+            float desiredSpeed = baseSpeed;
+            if (realitySpeedMultiplier > 1.0f)
+            {
+                desiredSpeed *= realitySpeedMultiplier; // +50% en realidad 0
+            }
+            if (HasActiveEvent)
+            {
+                desiredSpeed *= EventSpeedMultiplier;
+            }
+            if (SlowTimer > 0f)
+            {
+                SlowTimer -= dt;
+                desiredSpeed *= SlowMultiplier; // -10% de velocidad (x0.9) tras reporte correcto
+            }
+            if (SpeedBoostTimer > 0f)
+            {
+                SpeedBoostTimer -= dt;
+                desiredSpeed *= SpeedBoostMultiplier; // +25% de velocidad (x1.25) por 5s tras reporte incorrecto
+            }
+
+            Speed = Mathf.MoveTowards(Speed, desiredSpeed, dt * 2.8f);
+
+            bool moving = navigator != null && navigator.HasPath && Speed > 0.05f;
+            if (moving)
+            {
+                float newYaw;
+                float travelled;
+                Position = navigator.TickMovement(Position, Speed, dt, Yaw, out newYaw, out travelled);
+                Yaw = newYaw;
+
+                stepDistance += travelled;
+                if (stepDistance > 0.75f)
+                {
+                    stepDistance = 0f;
+                    if (Game != null && Game.Audio != null)
+                    {
+                        Game.Audio.Spatial("guard_step", Position, 0.5f);
+                    }
+                }
+
+                string animName = State == RealidadEnemyState.Hunting ? "run" : State == RealidadEnemyState.Investigating ? "walk" : "patrol";
+                PlayAnimation(animName, Mathf.Clamp(Speed / (State == RealidadEnemyState.Hunting ? 2.2f : 0.95f), 0.7f, 1.5f));
             }
             else
             {

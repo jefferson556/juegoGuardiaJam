@@ -207,7 +207,7 @@ namespace Piso13.Realidad
     {
         readonly P13RealidadWorld world;
         const float spacing = .2f;
-        public const float Radius = .54f;
+        public const float Radius = .45f;
         bool floor12;
         int width, height, revision = -1;
         bool closed;
@@ -274,6 +274,22 @@ namespace Piso13.Realidad
                     }
                 }
 
+            // Fallback si no hay Clear directo por contacto con pared o mueble
+            if (result < 0)
+            {
+                best = 9.0f;
+                for (int i = 0; i < grid.Length; i++)
+                    if (grid[i])
+                    {
+                        float d = (p - Point(i)).sqrMagnitude;
+                        if (d < best)
+                        {
+                            best = d;
+                            result = i;
+                        }
+                    }
+            }
+
             return result;
         }
 
@@ -283,6 +299,7 @@ namespace Piso13.Realidad
             if ((start.x > 20) != (goal.x > 20))
                 return empty;
             goal = Safe(goal);
+            start = Safe(start);
             if (world.Clear(start, goal, Radius + .02f, true))
                 return new List<Vector3> { goal };
             int from = Nearest(start), to = Nearest(goal);
