@@ -324,10 +324,11 @@ namespace Turno0313.EditorTools
         }
 
         // "El retrato del pasillo cambia de pose si lo miras dos veces" (pasillo, pared oeste).
-        static void Portrait(Transform parent)
+        // at / yaw: where it hangs in another map (the canvas faces local +x).
+        static void Portrait(Transform parent, Vector3? at = null, float yaw = 0)
         {
             var root = Group(parent, "Anomalia_Retrato");
-            root.localPosition = new Vector3(-1.12f, 1.65f, 8.5f);
+            root.SetLocalPositionAndRotation(at ?? new Vector3(-1.12f, 1.65f, 8.5f), Quaternion.Euler(0, yaw, 0));
             Box("Marco", root, Vector3.zero, new Vector3(.06f, .95f, .75f), mats["Madera"]);
             Box("Lienzo", root, new Vector3(.032f, 0, 0), new Vector3(.01f, .8f, .6f), mats["Lienzo"], false);
             Box("Cuerpo", root, new Vector3(.042f, -.2f, 0), new Vector3(.01f, .34f, .3f), mats["Figura"], false);
@@ -353,10 +354,11 @@ namespace Turno0313.EditorTools
         }
 
         // "El cartel de SALIDA apunta hacia una pared" (pasillo, colgado del techo).
-        static void ExitSign(Transform parent)
+        // at / yaw: where it hangs in another map (the text faces local -z).
+        static void ExitSign(Transform parent, Vector3? at = null, float yaw = 0)
         {
             var root = Group(parent, "Anomalia_CartelSalida");
-            root.localPosition = new Vector3(0, 2.55f, 11f);
+            root.SetLocalPositionAndRotation(at ?? new Vector3(0, 2.55f, 11f), Quaternion.Euler(0, yaw, 0));
             Box("Caja", root, Vector3.zero, new Vector3(.8f, .28f, .08f), mats["CartelVerde"]);
             Box("Cable_A", root, new Vector3(-.3f, .3f, 0), new Vector3(.01f, .32f, .01f), mats["Metal"], false);
             Box("Cable_B", root, new Vector3(.3f, .3f, 0), new Vector3(.01f, .32f, .01f), mats["Metal"], false);
@@ -724,10 +726,14 @@ namespace Turno0313.EditorTools
             mats[name] = m;
         }
 
+        // Adds the greybox to Build Settings if it is missing; an existing entry keeps its place, so rebuilding the
+        // greybox doesn't take the first slot (the scene the game starts in) from Turno_Piso13.
         static void AddToBuildSettings()
         {
-            var scenes = EditorBuildSettings.scenes.Where(s => s.path != ScenePath).ToList();
-            scenes.Insert(0, new EditorBuildSettingsScene(ScenePath, true));
+            if (EditorBuildSettings.scenes.Any(s => s.path == ScenePath))
+                return;
+            var scenes = EditorBuildSettings.scenes.ToList();
+            scenes.Add(new EditorBuildSettingsScene(ScenePath, true));
             EditorBuildSettings.scenes = scenes.ToArray();
         }
     }

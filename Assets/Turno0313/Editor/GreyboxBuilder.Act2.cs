@@ -15,26 +15,44 @@ namespace Turno0313.EditorTools
             HandOnlyForPlayer();
             var cams = SecurityCameras(level);
             Monitors(level, cams);
+            Act2Materials();
+            var old = level.Find("Oficinas/Taza (Jefferson)");
+            if (old)
+                Object.DestroyImmediate(old.gameObject);
+            Cup(anomalies, new Vector3(-3.75f, .76f, 17.75f));
+            Person(anomalies, cams[2], new Vector3(-6.1f, 0, 15.4f));
+            LiftFloor13(level);
+            EscapedClock(anomalies, new[] { cams[0], cams[1], cams[2], cams[3], cams[4] }, new[]
+            {
+                new Vector3(0, 1.8f, 6.2f), // CAM 01: flotando en medio del pasillo
+                new Vector3(0, 1.8f, 18f), // CAM 02: flotando en medio del pasillo
+                new Vector3(-4.2f, .955f, 13.4f), // CAM 03: de pie sobre un escritorio
+                new Vector3(-6.3f, 1.7f, 18.8f), // CAM 04: flotando entre las filas de escritorios
+                new Vector3(.6f, 1.7f, 17.9f) // CAM 05: delante de las puertas del ascensor
+            });
+            Act2Systems(systems);
+            var (guard, head) = SleepingGuard(level.Find("Caseta"), cams[5], Vector3.zero, 0);
+            FinalSystems(systems, cams[5], guard, head);
+            GameSystems(level, systems);
+        }
+
+        static void Act2Materials()
+        {
             // Light, shiny coffee and glowing steam: on a dark desk, seen through a camera, it still reads.
             Mat("Cafe", new Color(.42f, .24f, .11f), .92f);
             Mat("Vapor", new Color(.95f, .95f, .95f), .1f, 0, new Color(.7f, .7f, .7f));
             Mat("Traje", new Color(.1f, .1f, .12f), .2f);
             Mat("Uniforme", new Color(.13f, .17f, .3f), .25f);
             Mat("Piel", new Color(.72f, .58f, .48f), .2f);
-            Cup(level, anomalies);
-            Person(anomalies, cams[2]);
-            LiftFloor13(level);
-            EscapedClock(anomalies, cams);
-            Act2Systems(systems);
+        }
 
-            var (guard, head) = SleepingGuard(level, cams[5]);
+        static void FinalSystems(GameObject systems, SecurityCamera casetaCamera, GameObject guard, Transform head)
+        {
             var final = systems.AddComponent<FinalSequence>();
-            Set(final, "casetaCamera", cams[5]);
+            Set(final, "casetaCamera", casetaCamera);
             Set(final, "sleepingGuard", guard);
             Set(final, "guardHead", head);
             Set(final, "creditsMusic", Clip("P13_Menu_Ulrich"));
-
-            GameSystems(level, systems);
         }
 
         // Title and pause menus, the ambient hum (on its own object: its filter would muffle every other
@@ -50,8 +68,9 @@ namespace Turno0313.EditorTools
         }
 
         // The escaped anomaly: the dream's 03:13 clock, one and a half times as big, with one spot per camera
-        // (CAM 01-05) 2.5-4 m from it and facing it. It is drawn only by the camera it is on.
-        static void EscapedClock(Transform anomalies, SecurityCamera[] cams)
+        // (places[i] is where it shows up on cams[i], 2.5-4 m from it; it turns to face the lens).
+        // It is drawn only by the camera it is on.
+        static void EscapedClock(Transform anomalies, SecurityCamera[] cams, Vector3[] places)
         {
             var root = Group(anomalies, "Anomalia_Escapada");
             var clock = Group(root, "Reloj_Escapado");
@@ -60,14 +79,6 @@ namespace Turno0313.EditorTools
             Text("Hora", clock, new Vector3(-.04f, 0, 0), Quaternion.Euler(0, 90, 0), "03:13", .018f, new Color(1f, .2f, .12f));
             var only = clock.gameObject.AddComponent<CameraOnly>();
 
-            var places = new[]
-            {
-                new Vector3(0, 1.8f, 6.2f), // CAM 01: flotando en medio del pasillo
-                new Vector3(0, 1.8f, 18f), // CAM 02: flotando en medio del pasillo
-                new Vector3(-4.2f, .955f, 13.4f), // CAM 03: de pie sobre un escritorio
-                new Vector3(-6.3f, 1.7f, 18.8f), // CAM 04: flotando entre las filas de escritorios
-                new Vector3(.6f, 1.7f, 17.9f) // CAM 05: delante de las puertas del ascensor
-            };
             var spots = new Object[places.Length];
             var spotCams = new Object[places.Length];
             for (int i = 0; i < places.Length; i++)
@@ -75,7 +86,7 @@ namespace Turno0313.EditorTools
                 // The clock's face is its local -x: turn it so that side looks at the camera.
                 var toCamera = cams[i].transform.position - places[i];
                 float yaw = Mathf.Atan2(toCamera.z, -toCamera.x) * Mathf.Rad2Deg;
-                var spot = new GameObject("Sitio_CAM" + (i + 1).ToString("00")).transform;
+                var spot = new GameObject("Sitio_CAM" + cams[i].Number.ToString("00")).transform;
                 spot.SetParent(root, false);
                 spot.SetPositionAndRotation(places[i], Quaternion.Euler(0, yaw, 0));
                 spots[i] = spot;
@@ -93,10 +104,13 @@ namespace Turno0313.EditorTools
         }
 
         // The final: the guard asleep in the caseta chair, slumped over the desk, face on his arms.
-        // Only CAM 06 shows him; the final turns his head (the neck pivot) to the lens.
-        static (GameObject guard, Transform head) SleepingGuard(Transform level, SecurityCamera onlyIn)
+        // Only the caseta camera shows him; the final turns his head (the neck pivot) to the lens.
+        // Built for a desk on his -z side, 0.75 m deep with its near edge at z = -1.075; at / yaw move him to
+        // another desk.
+        static (GameObject guard, Transform head) SleepingGuard(Transform parent, SecurityCamera onlyIn, Vector3 at, float yaw)
         {
-            var root = Group(level.Find("Caseta"), "Guardia_Dormido");
+            var root = Group(parent, "Guardia_Dormido");
+            root.SetLocalPositionAndRotation(at, Quaternion.Euler(0, yaw, 0));
             Box("Cadera", root, new Vector3(0, .6f, -.66f), new Vector3(.38f, .2f, .36f), mats["Uniforme"], false);
             Box("Muslos", root, new Vector3(0, .56f, -.9f), new Vector3(.36f, .14f, .42f), mats["Uniforme"], false);
             Box("Piernas", root, new Vector3(0, .27f, -1.1f), new Vector3(.32f, .5f, .14f), mats["Uniforme"], false);
@@ -133,15 +147,13 @@ namespace Turno0313.EditorTools
             Set(hud, "reality", reality);
         }
 
-        // "Una taza de café que siempre está llena" (oficinas, último escritorio). Exaggerated so the cameras
-        // catch it: once wrong it is brimming, runs down the sides into a puddle on the desk and steams.
-        static void Cup(Transform level, Transform parent)
+        // "Una taza de café que siempre está llena". Exaggerated so the cameras catch it: once wrong it is
+        // brimming, runs down the sides and over the desk's +z edge into a puddle on the floor, and steams.
+        // 'at' = on top of a 0.76 m desk whose +z edge is 0.23 m away.
+        static void Cup(Transform parent, Vector3 at, float yaw = 0)
         {
-            var old = level.Find("Oficinas/Taza (Jefferson)");
-            if (old)
-                Object.DestroyImmediate(old.gameObject);
             var root = Group(parent, "Anomalia_Taza");
-            root.localPosition = new Vector3(-3.75f, .76f, 17.75f);
+            root.SetLocalPositionAndRotation(at, Quaternion.Euler(0, yaw, 0));
             Box("Cuerpo", root, new Vector3(0, .07f, 0), new Vector3(.13f, .14f, .13f), mats["Taza"]);
             Box("Asa", root, new Vector3(.08f, .075f, 0), new Vector3(.03f, .08f, .045f), mats["Taza"], false);
             var full = Group(root, "Llena");
@@ -166,12 +178,11 @@ namespace Turno0313.EditorTools
             Set(anomaly, "anomalousObjects", new Object[] { full.gameObject });
         }
 
-        // "Una persona de pie en una cámara que no sale en las demás" (oficinas, entre los escritorios).
-        // Only CAM 03 shows it, staring at the lens; CAM 04 sees the same spot empty.
-        static void Person(Transform parent, SecurityCamera onlyIn)
+        // "Una persona de pie en una cámara que no sale en las demás". Only 'onlyIn' shows it, staring at the
+        // lens; other cameras and the player's own eyes see the spot empty.
+        static void Person(Transform parent, SecurityCamera onlyIn, Vector3 at)
         {
             var root = Group(parent, "Anomalia_Persona");
-            var at = new Vector3(-6.1f, 0, 15.4f);
             root.localPosition = at;
             var look = onlyIn.transform.position - at;
             look.y = 0;

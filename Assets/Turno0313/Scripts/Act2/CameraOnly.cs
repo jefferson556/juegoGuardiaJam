@@ -94,6 +94,8 @@ namespace Turno0313
         }
 
         // Every game camera: the camera-only layers off, then each security camera gets back the ones meant for it.
+        // Security cameras come from their own list: the ones not on screen are disabled, and Camera.allCameras
+        // only lists enabled cameras.
         public static void Refresh()
         {
             int all = 0;
@@ -101,15 +103,17 @@ namespace Turno0313
                 if (Layer(i) >= 0)
                     all |= 1 << Layer(i);
             foreach (var cam in Camera.allCameras)
+                if (cam.cameraType == CameraType.Game && !cam.GetComponent<SecurityCamera>())
+                    cam.cullingMask &= ~all;
+            foreach (var security in SecurityCamera.All)
             {
-                if (cam.cameraType != CameraType.Game)
+                var cam = security.Camera;
+                if (!cam)
                     continue;
                 int mask = cam.cullingMask & ~all;
-                var security = cam.GetComponent<SecurityCamera>();
-                if (security)
-                    foreach (var c in active)
-                        if (c.slot >= 0 && c.VisibleIn(cam))
-                            mask |= 1 << Layer(c.slot);
+                foreach (var c in active)
+                    if (c.slot >= 0 && c.VisibleIn(cam))
+                        mask |= 1 << Layer(c.slot);
                 cam.cullingMask = mask;
             }
         }

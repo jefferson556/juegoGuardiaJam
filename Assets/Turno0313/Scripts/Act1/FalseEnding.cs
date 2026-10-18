@@ -120,8 +120,7 @@ namespace Turno0313
                 manager.ResetNight();
             }
 
-            foreach (var door in FindObjectsByType<Door>(FindObjectsInactive.Exclude))
-                door.ResetClosed();
+            Doors.CloseAll();
             float yaw = wakePoint ? wakePoint.eulerAngles.y : player ? player.Yaw : 0;
             if (player)
                 player.Teleport(wakePoint ? wakePoint.position : player.transform.position, yaw, 50f);

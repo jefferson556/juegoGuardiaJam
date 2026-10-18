@@ -17,10 +17,11 @@ namespace Turno0313.EditorTools
         }
 
         // "El reloj marca 03:13 y no avanza" (caseta, pared este, frente al escritorio).
-        static ClockAnomaly WallClock(Transform parent)
+        // at / yaw: where it hangs in another map (the face looks along local -x).
+        static ClockAnomaly WallClock(Transform parent, Vector3? at = null, float yaw = 0)
         {
             var root = Group(parent, "Anomalia_Reloj");
-            root.localPosition = new Vector3(2.37f, 2.15f, 0);
+            root.SetLocalPositionAndRotation(at ?? new Vector3(2.37f, 2.15f, 0), Quaternion.Euler(0, yaw, 0));
             Box("Caja", root, Vector3.zero, new Vector3(.06f, .26f, .62f), mats["Negro"]);
             var display = Text("Hora", root, new Vector3(-.04f, 0, 0), Quaternion.Euler(0, 90, 0), "03:13", .018f, new Color(1f, .2f, .12f));
 
@@ -62,10 +63,11 @@ namespace Turno0313.EditorTools
         }
 
         // Panel de alarma (caseta, pared oeste): case, LED, small screen and a 3x4 keypad.
-        static void AlarmPanelProp(Transform caseta)
+        // at / yaw: where it hangs in another map (the keypad faces local +x).
+        static void AlarmPanelProp(Transform caseta, Vector3? at = null, float yaw = 0)
         {
             var panel = Group(caseta, "Panel_Alarma");
-            panel.localPosition = new Vector3(-2.37f, 1.35f, .6f);
+            panel.SetLocalPositionAndRotation(at ?? new Vector3(-2.37f, 1.35f, .6f), Quaternion.Euler(0, yaw, 0));
             Box("Caja", panel, Vector3.zero, new Vector3(.06f, .42f, .32f), mats["Panel"]);
             var led = Box("Led", panel, new Vector3(.035f, .17f, .11f), new Vector3(.01f, .03f, .03f), mats["Rojo"], false);
             Text("Rotulo", panel, new Vector3(.04f, .17f, -.03f), Quaternion.Euler(0, -90, 0), "ALARMA", .006f, new Color(.1f, .1f, .1f));
@@ -83,17 +85,19 @@ namespace Turno0313.EditorTools
             MarkReportable(panel.gameObject, "Panel de alarma");
         }
 
-        static void Act1Systems(GameObject systems)
+        // spawnAt / wakeAt: the caseta spots of another map (defaults: the greybox).
+        static void Act1Systems(GameObject systems, Vector3? spawnAt = null, float spawnYaw = 0, Vector3? wakeAt = null, float wakeYaw = 180)
         {
             systems.AddComponent<NightClock>();
             var sleep = systems.AddComponent<SleepMeter>();
             systems.AddComponent<WakeCode>();
-            systems.AddComponent<ScreenFade>();
+            if (!systems.GetComponent<ScreenFade>())
+                systems.AddComponent<ScreenFade>();
 
             // Where every new night starts: the player spawn in the caseta, facing the door.
             var spawn = new GameObject("Inicio_Noche").transform;
             spawn.SetParent(systems.transform, false);
-            spawn.localPosition = new Vector3(0, 0, .4f);
+            spawn.SetLocalPositionAndRotation(spawnAt ?? new Vector3(0, 0, .4f), Quaternion.Euler(0, spawnYaw, 0));
             var audio = systems.AddComponent<AudioSource>();
             audio.playOnAwake = false;
             audio.spatialBlend = 0;
@@ -106,7 +110,7 @@ namespace Turno0313.EditorTools
             // False ending: he wakes up standing by his desk, facing the camera monitors.
             var wake = new GameObject("Despertar_Escritorio").transform;
             wake.SetParent(systems.transform, false);
-            wake.SetLocalPositionAndRotation(new Vector3(.6f, 0, -.55f), Quaternion.Euler(0, 180, 0));
+            wake.SetLocalPositionAndRotation(wakeAt ?? new Vector3(.6f, 0, -.55f), Quaternion.Euler(0, wakeYaw, 0));
             var ending = systems.AddComponent<FalseEnding>();
             Set(ending, "wakePoint", wake);
             Set(ending, "creditsMusic", Clip("P13_Menu_Ulrich"));

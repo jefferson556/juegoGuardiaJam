@@ -109,8 +109,7 @@ namespace Turno0313
             // Under the black: a normal floor again.
             if (manager)
                 manager.ResetNight();
-            foreach (var door in FindObjectsByType<Door>(FindObjectsInactive.Exclude))
-                door.ResetClosed();
+            Doors.CloseAll();
             if (player)
                 player.Teleport(spawnPosition, spawnYaw);
             Night++;
