@@ -176,8 +176,9 @@ namespace Turno0313.EditorTools
             Act2Materials();
             var abandoned = Group(level, "Sala_Abandonada");
             MarkReportable(Desk(abandoned, "Escritorio_Abandonado", new Vector3(-5.25f, 0, 4.5f), 0, 1.4f, false), "Escritorio");
-            Cup(anomalies, new Vector3(-5f, .76f, 4.645f));
-            Person(anomalies, cams[8], new Vector3(4.9f, 0, 4.4f));
+            // Jefferson's cup and elegant person models (boxes if they can't be loaded).
+            Cup(anomalies, new Vector3(-5f, .76f, 4.645f), 0, true);
+            Person(anomalies, cams[8], new Vector3(4.9f, 0, 4.4f), true);
 
             // The escaped clock: in front of each camera, most of the way to what it looks at, at head height.
             var roaming = cams.Skip(1).ToArray();

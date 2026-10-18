@@ -8,6 +8,8 @@ namespace Turno0313.EditorTools
     public static partial class GreyboxBuilder
     {
         const string UnlitShaderPath = "Packages/com.unity.render-pipelines.universal/Shaders/Unlit.shader";
+        // Turn of the persona elegante model inside its anomaly so its face looks along the anomaly's +z.
+        const float PersonModelYaw = 0f;
 
         static void Act2(Transform level, Transform anomalies, GameObject systems)
         {
@@ -34,6 +36,41 @@ namespace Turno0313.EditorTools
             var (guard, head) = SleepingGuard(level.Find("Caseta"), cams[5], Vector3.zero, 0);
             FinalSystems(systems, cams[5], guard, head);
             GameSystems(level, systems);
+        }
+
+        // A Blender model from Piso 13's Resources/Models (Jefferson's), cleaned the way his game does it: the
+        // camera and light the .blend carries are removed, his material goes on every renderer, no colliders.
+        // Null when the model can't be loaded (a PC without Blender): the caller falls back to boxes.
+        static GameObject BlendModel(string file, string material, Transform parent, float scale)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(Piso13Models + file + ".blend");
+            if (!prefab)
+            {
+                Debug.LogWarning("No se pudo cargar " + file + ".blend (¿falta Blender?): se usan cajas.");
+                return null;
+            }
+
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            PrefabUtility.UnpackPrefabInstance(go, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+            foreach (var cam in go.GetComponentsInChildren<Camera>(true))
+                Object.DestroyImmediate(cam.gameObject);
+            foreach (var light in go.GetComponentsInChildren<Light>(true))
+                Object.DestroyImmediate(light.gameObject);
+            foreach (var collider in go.GetComponentsInChildren<Collider>(true))
+                Object.DestroyImmediate(collider);
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(Piso13Models + "Materials/" + material + ".mat");
+            if (mat)
+                foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                {
+                    var list = new Material[r.sharedMaterials.Length];
+                    for (int i = 0; i < list.Length; i++)
+                        list[i] = mat;
+                    r.sharedMaterials = list;
+                }
+
+            go.transform.SetParent(parent, false);
+            go.transform.localScale = Vector3.one * scale;
+            return go;
         }
 
         static void Act2Materials()
@@ -150,12 +187,25 @@ namespace Turno0313.EditorTools
         // "Una taza de café que siempre está llena". Exaggerated so the cameras catch it: once wrong it is
         // brimming, runs down the sides and over the desk's +z edge into a puddle on the floor, and steams.
         // 'at' = on top of a 0.76 m desk whose +z edge is 0.23 m away.
-        static void Cup(Transform parent, Vector3 at, float yaw = 0)
+        // useModel: Jefferson's taza.blend instead of the box cup (same size: 0.19 x 0.15 x 0.14 m at scale 0.2).
+        static void Cup(Transform parent, Vector3 at, float yaw = 0, bool useModel = false)
         {
             var root = Group(parent, "Anomalia_Taza");
             root.SetLocalPositionAndRotation(at, Quaternion.Euler(0, yaw, 0));
-            Box("Cuerpo", root, new Vector3(0, .07f, 0), new Vector3(.13f, .14f, .13f), mats["Taza"]);
-            Box("Asa", root, new Vector3(.08f, .075f, 0), new Vector3(.03f, .08f, .045f), mats["Taza"], false);
+            var model = useModel ? BlendModel("taza", "M_Taza", root, .2f) : null;
+            if (model)
+            {
+                model.name = "Taza";
+                // What R aims at (the normal cup can be reported too, as a wrong report).
+                var aim = root.gameObject.AddComponent<BoxCollider>();
+                aim.center = new Vector3(-.016f, .073f, 0);
+                aim.size = new Vector3(.19f, .15f, .14f);
+            }
+            else
+            {
+                Box("Cuerpo", root, new Vector3(0, .07f, 0), new Vector3(.13f, .14f, .13f), mats["Taza"]);
+                Box("Asa", root, new Vector3(.08f, .075f, 0), new Vector3(.03f, .08f, .045f), mats["Taza"], false);
+            }
             var full = Group(root, "Llena");
             Box("Cafe", full, new Vector3(0, .141f, 0), new Vector3(.12f, .006f, .12f), mats["Cafe"], false);
             Box("Chorro_A", full, new Vector3(-.067f, .075f, .02f), new Vector3(.006f, .13f, .035f), mats["Cafe"], false);
@@ -180,7 +230,8 @@ namespace Turno0313.EditorTools
 
         // "Una persona de pie en una cámara que no sale en las demás". Only 'onlyIn' shows it, staring at the
         // lens; other cameras and the player's own eyes see the spot empty.
-        static void Person(Transform parent, SecurityCamera onlyIn, Vector3 at)
+        // useModel: Jefferson's "persona elegante.blend" (1.8 m at scale 1.6) instead of the box figure.
+        static void Person(Transform parent, SecurityCamera onlyIn, Vector3 at, bool useModel = false)
         {
             var root = Group(parent, "Anomalia_Persona");
             root.localPosition = at;
@@ -188,13 +239,22 @@ namespace Turno0313.EditorTools
             look.y = 0;
             root.localRotation = Quaternion.LookRotation(look);
             var body = Group(root, "Persona");
-            Box("Piernas", body, new Vector3(0, .43f, 0), new Vector3(.34f, .86f, .2f), mats["Traje"], false);
-            Box("Torso", body, new Vector3(0, 1.17f, 0), new Vector3(.46f, .62f, .26f), mats["Traje"], false);
-            Box("Brazo_A", body, new Vector3(-.29f, 1.1f, 0), new Vector3(.1f, .62f, .12f), mats["Traje"], false);
-            Box("Brazo_B", body, new Vector3(.29f, 1.1f, 0), new Vector3(.1f, .62f, .12f), mats["Traje"], false);
-            Box("Cabeza", body, new Vector3(0, 1.62f, 0), new Vector3(.2f, .25f, .22f), mats["Lienzo"], false);
-            Box("Ojo_A", body, new Vector3(-.045f, 1.65f, .112f), new Vector3(.03f, .02f, .005f), mats["Negro"], false);
-            Box("Ojo_B", body, new Vector3(.045f, 1.65f, .112f), new Vector3(.03f, .02f, .005f), mats["Negro"], false);
+            var model = useModel ? BlendModel("persona elegante", "M_PersonaElegante", body, 1.6f) : null;
+            if (model)
+            {
+                model.name = "Persona_Elegante";
+                model.transform.localRotation = Quaternion.Euler(0, PersonModelYaw, 0);
+            }
+            else
+            {
+                Box("Piernas", body, new Vector3(0, .43f, 0), new Vector3(.34f, .86f, .2f), mats["Traje"], false);
+                Box("Torso", body, new Vector3(0, 1.17f, 0), new Vector3(.46f, .62f, .26f), mats["Traje"], false);
+                Box("Brazo_A", body, new Vector3(-.29f, 1.1f, 0), new Vector3(.1f, .62f, .12f), mats["Traje"], false);
+                Box("Brazo_B", body, new Vector3(.29f, 1.1f, 0), new Vector3(.1f, .62f, .12f), mats["Traje"], false);
+                Box("Cabeza", body, new Vector3(0, 1.62f, 0), new Vector3(.2f, .25f, .22f), mats["Lienzo"], false);
+                Box("Ojo_A", body, new Vector3(-.045f, 1.65f, .112f), new Vector3(.03f, .02f, .005f), mats["Negro"], false);
+                Box("Ojo_B", body, new Vector3(.045f, 1.65f, .112f), new Vector3(.03f, .02f, .005f), mats["Negro"], false);
+            }
             var only = body.gameObject.AddComponent<CameraOnly>();
             Set(only, "cameras", new Object[] { onlyIn });
             body.gameObject.SetActive(false);
