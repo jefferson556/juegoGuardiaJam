@@ -14,6 +14,8 @@ namespace Turno0313
         [SerializeField] TextMesh label;
         [SerializeField] SecurityCamera[] feeds;
         [SerializeField] float secondsPerFeed = 5f;
+        [Tooltip("Más lejos que esto, el monitor deja de pedir imagen a su cámara (ahorra render).")]
+        [SerializeField] float viewDistance = 10f;
 
         Material material;
 
@@ -44,6 +46,12 @@ namespace Turno0313
             var cam = feeds[(int)(Time.time / secondsPerFeed) % feeds.Length];
             if (!cam)
                 return;
+            // Not while the camera screen covers everything: nobody sees the desk monitor then.
+            var player = PlayerController.Instance;
+            var monitors = SecurityMonitors.Instance;
+            bool covered = monitors && monitors.IsOpen;
+            if (!covered && (!player || Vector3.Distance(player.transform.position, transform.position) < viewDistance))
+                cam.Want();
             material.SetTexture(BaseMap, cam.Feed);
             if (label)
                 label.text = cam.Code;

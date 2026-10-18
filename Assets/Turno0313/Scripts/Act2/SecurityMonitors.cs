@@ -95,6 +95,8 @@ namespace Turno0313
             openedFrame = Time.frameCount;
             Enlarged = -1;
             feedback = null;
+            foreach (var cam in SecurityCamera.All)
+                cam.Want();
             if (PlayerController.Instance)
                 PlayerController.Instance.SetControl(false);
             if (!hiss.clip)
@@ -124,6 +126,8 @@ namespace Turno0313
             if (count == 0 || (Locked && Enlarged >= 0))
                 return;
             Enlarged = (index % count + count) % count;
+            // Rendering from this very frame, so the switch never shows a stale picture.
+            Current.Want();
             gridCursor = Enlarged;
             cursor = new Vector2(.5f, .5f);
             feedback = null;
@@ -203,6 +207,13 @@ namespace Turno0313
                 Close(true);
                 return;
             }
+
+            // What is on screen renders: every feed on the grid, only the big one when enlarged.
+            if (Current)
+                Current.Want();
+            else
+                foreach (var cam in SecurityCamera.All)
+                    cam.Want();
 
             // The key that opened the screen (gamepad A) must not also pick a camera.
             if (Time.frameCount == openedFrame)
@@ -303,7 +314,7 @@ namespace Turno0313
             }
 
             string hints = Enlarged < 0
-                ? "Clic o 1-6: ver una cámara  ·  Esc: salir\nMando: cruceta y A, B sale"
+                ? "Clic o 1-" + Mathf.Min(9, SecurityCamera.All.Count) + ": ver una cámara  ·  Esc: salir\nMando: cruceta y A, B sale"
                 : "Clic o R: reportar lo que apuntas  ·  ← →: cambiar de cámara  ·  Esc: volver\nMando: stick mueve, A reporta, LB/RB cambian, B vuelve";
             if (!Locked)
                 GUI.Label(new Rect(0, 1080 - 72, w, 52), hints, small);

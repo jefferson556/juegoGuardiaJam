@@ -126,8 +126,7 @@ namespace Turno0313
                 AlarmPanel.Instance.ResetForDream();
             if (SleepMeter.Instance)
                 SleepMeter.Instance.Reveal();
-            foreach (var door in FindObjectsByType<Door>(FindObjectsInactive.Exclude))
-                door.ResetClosed();
+            Doors.CloseAll();
             if (player && spawn)
                 player.Teleport(spawn.position, spawn.eulerAngles.y);
             Returns++;

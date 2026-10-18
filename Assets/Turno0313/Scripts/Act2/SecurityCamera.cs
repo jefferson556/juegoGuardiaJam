@@ -5,8 +5,9 @@ namespace Turno0313
 {
     // One security camera of the floor (Act 2). It renders into a small texture that the caseta's desk monitors
     // and the camera screen show. Its number and name are what the screen prints: "CAM 03 · OFICINAS ESTE".
-    // Leave the Camera component disabled in the scene: it turns itself on once it has its texture, so in the
-    // editor it never takes over the Game view.
+    // It only renders on frames where someone shows it (Want()), so a floor with many cameras costs only the
+    // ones on screen; the rest keep their last picture.
+    // Leave the Camera component disabled in the scene, so in the editor it never takes over the Game view.
     [RequireComponent(typeof(Camera))]
     public sealed class SecurityCamera : MonoBehaviour
     {
@@ -24,6 +25,8 @@ namespace Turno0313
         public RenderTexture Feed { get; private set; }
 
         static readonly List<SecurityCamera> all = new List<SecurityCamera>();
+        // It renders once at the start so every feed has a first picture.
+        int wantedFrame = int.MaxValue / 2;
 
         void Awake()
         {
@@ -35,8 +38,6 @@ namespace Turno0313
             if (playerOnly >= 0)
                 Camera.cullingMask &= ~(1 << playerOnly);
             Camera.enabled = true;
-            // Now that it is on, give it (and the player's camera) the right camera-only layers.
-            CameraOnly.Refresh();
         }
 
         void OnEnable()
@@ -44,9 +45,19 @@ namespace Turno0313
             if (!all.Contains(this))
                 all.Add(this);
             all.Sort((a, b) => a.number.CompareTo(b.number));
+            // Now that it is listed, give it (and the player's camera) the right camera-only layers.
+            CameraOnly.Refresh();
         }
 
         void OnDisable() => all.Remove(this);
+
+        // Call every frame (from Update) while this feed is on screen.
+        public void Want() => wantedFrame = Time.frameCount;
+
+        void Start() => wantedFrame = Time.frameCount;
+
+        // After every Update has said what it shows, before rendering.
+        void LateUpdate() => Camera.enabled = Time.frameCount - wantedFrame <= 1;
 
         void OnDestroy()
         {
