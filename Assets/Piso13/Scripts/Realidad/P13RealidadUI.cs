@@ -126,6 +126,14 @@ namespace Piso13.Realidad
             // Retícula central
             GUI.Label(new Rect(Width / 2 - 4, Height / 2 - 10, 20, 20), "·", body);
 
+            // Prompt de interacción / reporte en pantalla (centrado bajo la retícula)
+            if (!string.IsNullOrEmpty(Game.CurrentInteractionPrompt))
+            {
+                var promptRect = new Rect(Width / 2 - 275, Height / 2 + 25, 550, 34);
+                Panel(promptRect, 0.88f, new Color(0.04f, 0.08f, 0.10f, 0.88f));
+                GUI.Label(promptRect, Game.CurrentInteractionPrompt, body);
+            }
+
             // 1. Panel Superior Izquierdo: Reloj y Estado
             Panel(new Rect(22, 18, 300, 75), 0.78f);
             int hour = (Game.Minute / 60) % 24;
@@ -133,19 +141,39 @@ namespace Piso13.Realidad
             GUI.Label(new Rect(37, 26, 280, 28), string.Format("{0:00}:{1:00} AM  ·  PISO 12", hour, minute), heading);
             GUI.Label(new Rect(37, 57, 280, 26), "Energía " + Mathf.CeilToInt(Game.Energy) + "%", small);
 
-            // 2. Barra de Realidad (Aparece únicamente tras cerrar la ventana emergente)
+            // 2. Barra de Realidad (Aparece únicamente tras cerrar la ventana emergente de alerta)
             if (Game.ModalDismissed)
             {
-                Panel(new Rect(340, 18, 480, 75), 0.85f);
+                Panel(new Rect(340, 18, 580, 75), 0.85f);
                 float r = Mathf.Clamp(Game.Reality, 0, 100);
-                Color barColor = r > 60 ? teal : r > 30 ? amber : warningRed;
+                Color barColor = r > 50f ? teal : r > 25f ? amber : warningRed;
 
-                GUI.Label(new Rect(355, 26, 450, 26), $"SUEÑO:  {Mathf.CeilToInt(r)}%", small);
+                string realityStatus;
+                if (r > 50f)
+                {
+                    realityStatus = $"REALIDAD:  {Mathf.CeilToInt(r)}%";
+                }
+                else if (r > 25f)
+                {
+                    realityStatus = $"REALIDAD DISTORSIONÁNDOSE PELIGRO:  {Mathf.CeilToInt(r)}%";
+                }
+                else
+                {
+                    realityStatus = $"LA DISTORSIÓN DE LA REALIDAD ES INMINENTE:  {Mathf.CeilToInt(r)}%";
+                }
+
+                var labelStyle = new GUIStyle(small)
+                {
+                    fontStyle = FontStyle.Bold
+                };
+                labelStyle.normal.textColor = barColor;
+
+                GUI.Label(new Rect(355, 26, 550, 26), realityStatus, labelStyle);
 
                 // Barra de fondo
-                Panel(new Rect(355, 54, 450, 22), 0.9f, new Color(0.08f, 0.12f, 0.14f, 1f));
+                Panel(new Rect(355, 54, 550, 22), 0.9f, new Color(0.08f, 0.12f, 0.14f, 1f));
                 // Barra de progreso rellena
-                Panel(new Rect(357, 56, (446 * (r / 100f)), 18), 1f, barColor);
+                Panel(new Rect(357, 56, (546 * (r / 100f)), 18), 1f, barColor);
             }
 
             // 3. Panel Inferior: Objetivos e Instrucciones
@@ -218,7 +246,7 @@ namespace Piso13.Realidad
             var currentCam = cameras[camIdx];
 
             // Líneas de estática
-            float interference = Game.Enemy != null ? Game.Enemy.Interference(currentCam.position) : 0f;
+            float interference = Game.Enemy != null && Game.Enemy.gameObject.activeInHierarchy ? Game.Enemy.Interference(currentCam.position) : 0f;
             if (interference > 0.05f)
             {
                 var old = GUI.color;
@@ -252,6 +280,14 @@ namespace Piso13.Realidad
             // Indicador inferior
             Panel(new Rect(30, 590, 800, 36), 0.75f);
             GUI.Label(new Rect(45, 596, 770, 26), "← / →: cambiar cámara  ·  Ratón: orientar  ·  V / ESC: salir de CCTV", small);
+
+            // Prompt de reporte de anomalía en CCTV (ej. CAM 06 con la Persona Elegante)
+            if (!string.IsNullOrEmpty(Game.CurrentInteractionPrompt))
+            {
+                var promptRect = new Rect(Width / 2 - 275, 530, 550, 42);
+                Panel(promptRect, 0.92f, new Color(0.40f, 0.08f, 0.08f, 0.92f));
+                GUI.Label(promptRect, Game.CurrentInteractionPrompt, body);
+            }
         }
 
         void EndScreen()

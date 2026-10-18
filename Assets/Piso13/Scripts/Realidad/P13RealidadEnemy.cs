@@ -46,6 +46,10 @@ namespace Piso13.Realidad
         public float EventTimer = 0f;
         public float EventSpeedMultiplier = 1f;
 
+        [Header("Ralentización por Reporte de Anomalías")]
+        public float SlowTimer = 0f;
+        public float SlowMultiplier = 0.5f;
+
         public static Action<string, Vector3, float> OnGlobalMapEvent;
 
         // Nodos del mapa idénticos a P13Guard en Piso 13
@@ -227,6 +231,13 @@ namespace Piso13.Realidad
             ActiveEventId = "";
             EventSpeedMultiplier = 1f;
             EventTimer = 0f;
+        }
+
+        public void ApplySlow(float duration = 10f, float multiplier = 0.5f)
+        {
+            SlowTimer = duration;
+            SlowMultiplier = Mathf.Clamp(multiplier, 0.1f, 1f);
+            Debug.Log($"[RealidadEnemy] Ralentizado a x{SlowMultiplier:F2} durante {SlowTimer:F1}s tras reporte de anomalía");
         }
 
         // =====================================================================
@@ -476,6 +487,11 @@ namespace Piso13.Realidad
                                       State == RealidadEnemyState.Investigating ? 1.15f : 0.85f;
 
                     float desiredSpeed = baseSpeed * (HasActiveEvent ? EventSpeedMultiplier : 1f);
+                    if (SlowTimer > 0f)
+                    {
+                        SlowTimer -= dt;
+                        desiredSpeed = baseSpeed * SlowMultiplier;
+                    }
                     Speed = Mathf.MoveTowards(Speed, desiredSpeed, dt * 2.5f);
 
                     var next = Position + d.normalized * Mathf.Min(d.magnitude, Speed * dt);

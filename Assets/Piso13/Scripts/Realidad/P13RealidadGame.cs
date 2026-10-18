@@ -49,7 +49,18 @@ namespace Piso13.Realidad
         public int CameraIndex = 0;
         public bool Captured => Phase == GamePhase.Capture || Phase == GamePhase.Lost;
         public string NotificationMessage = "";
+        public string CurrentInteractionPrompt = "";
         public float DoorShake = 0f;
+
+        [Header("Referencias a Elementos del Mapa")]
+        public P13CoffeeCup CoffeeCup;
+        public P13PersonaEleganteAnomaly PersonaAnomaly;
+
+        [Header("Progresión de Anomalías")]
+        public bool CoffeeAnomalyReported = false;
+        float coffeeDrinkTimer = 0f;
+        bool coffeeTimerActive = false;
+        bool coffeeHintShown = false;
 
         [Header("Configuración de Anomalía (Reloj Pentagrama)")]
         [Tooltip("Posición del reloj en el mundo (X=2.66, Y=2.05, Z=-1.60 )")]
@@ -132,42 +143,107 @@ namespace Piso13.Realidad
             realityTimer = 0f;
             captureTime = 0f;
             DoorShake = 0f;
+            CoffeeAnomalyReported = false;
+            coffeeDrinkTimer = 0f;
+            coffeeTimerActive = false;
+            coffeeHintShown = false;
 
             CursorLock(true);
+
+            // Mensaje al despertar frente a la cama con duración exacta de 3 segundos
+            ShowNotification("Estás despierto, hora de empezar tu turno.", 3.0f);
+        }
+
+        static void SafeDestroy(UnityEngine.Object obj)
+        {
+            if (obj == null) return;
+            if (Application.isPlaying) UnityEngine.Object.Destroy(obj);
+            else UnityEngine.Object.DestroyImmediate(obj);
+        }
+
+        static void StripBlenderJunk(GameObject go)
+        {
+            if (go == null) return;
+            foreach (var cam in go.GetComponentsInChildren<Camera>(true))
+                SafeDestroy(cam.gameObject);
+            foreach (var l in go.GetComponentsInChildren<Light>(true))
+                SafeDestroy(l.gameObject);
+            var junkCam = go.transform.Find("Camera");
+            if (junkCam != null) SafeDestroy(junkCam.gameObject);
+            var junkLight = go.transform.Find("Light");
+            if (junkLight != null) SafeDestroy(junkLight.gameObject);
+        }
+
+        static void ApplyModelMaterial(GameObject go, string matName)
+        {
+            if (go == null) return;
+            var mat = Resources.Load<Material>("Models/Materials/" + matName);
+            if (mat != null)
+            {
+                foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                {
+                    var mats = new Material[r.sharedMaterials.Length];
+                    for (int i = 0; i < mats.Length; i++)
+                    {
+                        mats[i] = mat;
+                    }
+                    r.sharedMaterials = mats;
+                }
+            }
         }
 
         void CleanupSceneObjects()
         {
             if (View != null)
             {
-                Destroy(View.gameObject);
+                SafeDestroy(View.gameObject);
                 View = null;
             }
             var oldCam = GameObject.Find("PlayerCamera");
-            if (oldCam != null) Destroy(oldCam);
+            if (oldCam != null) SafeDestroy(oldCam);
 
             if (World != null && World.Root != null)
             {
-                Destroy(World.Root.gameObject);
+                SafeDestroy(World.Root.gameObject);
                 World = null;
             }
-            var oldWorld = GameObject.Find("Piso13_World");
-            if (oldWorld != null) Destroy(oldWorld);
+
+            // Destruir cualquier Piso13_Realidad_World o Piso13_World o clones residuales
+            GameObject oldObj;
+            while ((oldObj = GameObject.Find("Piso13_Realidad_World")) != null)
+            {
+                SafeDestroy(oldObj);
+            }
+            while ((oldObj = GameObject.Find("Piso13_World")) != null)
+            {
+                SafeDestroy(oldObj);
+            }
+            while ((oldObj = GameObject.Find("taza(Clone)")) != null)
+            {
+                SafeDestroy(oldObj);
+            }
+            while ((oldObj = GameObject.Find("cafetera(Clone)")) != null)
+            {
+                SafeDestroy(oldObj);
+            }
 
             if (Enemy != null)
             {
-                Destroy(Enemy.gameObject);
+                SafeDestroy(Enemy.gameObject);
                 Enemy = null;
             }
             var oldEnemy = GameObject.Find("RealidadEnemy");
-            if (oldEnemy != null) Destroy(oldEnemy);
+            if (oldEnemy != null) SafeDestroy(oldEnemy);
 
-            var oldClock = GameObject.Find("Clock_Pentagram");
-            if (oldClock != null) Destroy(oldClock);
+            foreach (var n in new[] { "Clock_Pentagram", "Cafetera", "Taza_Cafe", "Persona_Elegante_CAM06", "Cama_Sola" })
+            {
+                GameObject obj;
+                while ((obj = GameObject.Find(n)) != null) SafeDestroy(obj);
+            }
 
             if (officeDoorLight != null)
             {
-                Destroy(officeDoorLight.gameObject);
+                SafeDestroy(officeDoorLight.gameObject);
                 officeDoorLight = null;
             }
         }
@@ -204,8 +280,9 @@ namespace Piso13.Realidad
 
         void SetupPlayer()
         {
-            PlayerPosition = P13RealidadRules.RK(0, 0.8f, 1.2f);
-            Yaw = 180f;
+            // Spawn de pie frente a la cama sola (Cama en: X: -6.712, Y: -0.014, Z: -6.003)
+            PlayerPosition = new Vector3(-5.60f, 0.80f, -6.00f);
+            Yaw = 90f;
             Pitch = 0f;
             EyeHeight = 1.65f;
 
@@ -252,6 +329,8 @@ namespace Piso13.Realidad
             UpdateCameraView(0.016f);
         }
 
+        public bool ModalTriggered => modalTriggered;
+
         void SetupEnemy()
         {
             var enemyGo = new GameObject("RealidadEnemy");
@@ -260,52 +339,176 @@ namespace Piso13.Realidad
             Enemy.ApplySpawnPosition();
             Enemy.SetupCharacter();
             Enemy.InitNavigation(World);
+            // El enemigo permanece inactivo hasta encontrar la primera anomalía o pasar los 30s
+            enemyGo.SetActive(false);
+        }
+
+        public void TriggerAlertModal()
+        {
+            if (modalTriggered) return;
+            modalTriggered = true;
+            ShowModal = true;
+            CursorLock(false);
+
+            // Hacer spawn del enemigo en su punto de spawn oficial (CAM09 / Almacén)
+            SpawnEnemy();
+        }
+
+        public void SpawnEnemy()
+        {
+            if (Enemy != null)
+            {
+                if (!Enemy.gameObject.activeSelf)
+                {
+                    Enemy.gameObject.SetActive(true);
+                }
+                Enemy.ApplySpawnPosition();
+                Enemy.InitNavigation(World);
+                Debug.Log("[P13RealidadGame] Enemigo spawneado en el mapa.");
+            }
         }
 
         void SetupAnomalies()
         {
             try
             {
-                // Configuración de posición pegada a la pared de la oficina
-                // La pared sólida Este va de Z = -1.05 a Z = -3.00 (a Z = 0 hay una abertura)
+                // 1. Reloj Pentagrama en la pared derecha de la oficina
                 var clockPrefab = Resources.Load<GameObject>("Models/Clock_Pentagram");
                 if (clockPrefab != null)
                 {
                     var clockGo = Instantiate(clockPrefab);
                     clockGo.name = "Clock_Pentagram";
-                    if (World != null && World.Root != null)
-                    {
-                        clockGo.transform.SetParent(World.Root);
-                    }
-                    clockGo.transform.position = ClockAnomalyPosition;
-                    clockGo.transform.rotation = Quaternion.Euler(ClockAnomalyRotation);
+                    if (World != null && World.Root != null) clockGo.transform.SetParent(World.Root, false);
+                    clockGo.transform.localPosition = ClockAnomalyPosition;
+                    clockGo.transform.localRotation = Quaternion.Euler(ClockAnomalyRotation);
                     clockGo.transform.localScale = ClockAnomalyScale;
 
-                    // BoxCollider para permitir detección por Raycast
                     var col = clockGo.GetComponent<BoxCollider>();
-                    if (col == null)
-                    {
-                        col = clockGo.AddComponent<BoxCollider>();
-                        col.center = new Vector3(0f, 0f, 0.02f);
-                        col.size = new Vector3(0.35f, 0.35f, 0.12f);
-                    }
+                    if (col == null) col = clockGo.AddComponent<BoxCollider>();
+                    col.center = new Vector3(0f, 0f, 0.02f);
+                    col.size = new Vector3(0.35f, 0.35f, 0.12f);
 
-                    // Componente de anomalía interactivo
                     var anomaly = clockGo.GetComponent<P13Anomaly>();
-                    if (anomaly == null)
-                    {
-                        anomaly = clockGo.AddComponent<P13Anomaly>();
-                    }
+                    if (anomaly == null) anomaly = clockGo.AddComponent<P13Anomaly>();
                     anomaly.AnomalyId = "Reloj Pentagrama";
                     anomaly.Description = "Reloj con un pentagrama en la pared derecha de la oficina";
                     anomaly.DisappearOnReport = true;
                     anomaly.MaxReportDistance = 3.8f;
-                    anomaly.EnemySpeedMultiplier = 1.6f;
+                    anomaly.EnemySpeedMultiplier = 1.0f;
                     anomaly.AlertDuration = 10f;
+                    anomaly.CustomPrompt = "¿Deseas reportar que encontraste una anomalía? [R]";
                 }
-                else
+
+                // 2. Cafetera (Mesa Recepción junto a la taza) - Reportable como falsa anomalía (-10% Barra)
+                var cafePrefab = Resources.Load<GameObject>("Models/cafetera");
+                if (cafePrefab != null)
                 {
-                    Debug.LogWarning("No se encontró el modelo Models/Clock_Pentagram en Resources");
+                    var cafeGo = Instantiate(cafePrefab);
+                    cafeGo.name = "Cafetera";
+                    StripBlenderJunk(cafeGo);
+                    ApplyModelMaterial(cafeGo, "M_Cafetera");
+
+                    if (World != null && World.Root != null) cafeGo.transform.SetParent(World.Root, false);
+                    cafeGo.transform.localPosition = new Vector3(-7.287f, 1.111f, 1.3164f);
+                    cafeGo.transform.localRotation = Quaternion.Euler(0f, 100.82f, 0f);
+                    cafeGo.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
+
+                    var col = cafeGo.GetComponent<BoxCollider>();
+                    if (col == null) col = cafeGo.AddComponent<BoxCollider>();
+                    col.center = new Vector3(0f, 0.45f, 0f);
+                    col.size = new Vector3(0.7f, 0.9f, 0.7f);
+
+                    var prop = cafeGo.GetComponent<P13ReportableProp>();
+                    if (prop == null) prop = cafeGo.AddComponent<P13ReportableProp>();
+                    prop.PropId = "Cafetera";
+                    prop.IsFakeAnomaly = true;
+                    prop.PenaltyPercent = 10f;
+                    prop.MaxDistance = 3.5f;
+                    prop.CustomPrompt = "¿Deseas reportar que encontraste una anomalía? [R]";
+                    prop.FakeMessage = "FALSA ALARMA: La cafetera no es una anomalía (-10% Realidad)";
+                }
+
+                // 3. Taza de Café (Mesa Recepción) - Líquido dinámico, [E] beber, [R] reportar
+                var tazaPrefab = Resources.Load<GameObject>("Models/taza");
+                if (tazaPrefab != null)
+                {
+                    var tazaGo = Instantiate(tazaPrefab);
+                    tazaGo.name = "Taza_Cafe";
+                    StripBlenderJunk(tazaGo);
+                    ApplyModelMaterial(tazaGo, "M_Taza");
+
+                    if (World != null && World.Root != null) tazaGo.transform.SetParent(World.Root, false);
+                    tazaGo.transform.localPosition = new Vector3(-7.287f, 1.111f, 1.038f);
+                    tazaGo.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+                    tazaGo.transform.localScale = new Vector3(0.2f, 0.2f, 0.2f);
+
+                    var col = tazaGo.GetComponent<BoxCollider>();
+                    if (col == null) col = tazaGo.AddComponent<BoxCollider>();
+                    col.center = new Vector3(0f, 0.35f, 0f);
+                    col.size = new Vector3(0.9f, 0.75f, 0.8f);
+
+                    CoffeeCup = tazaGo.GetComponent<P13CoffeeCup>();
+                    if (CoffeeCup == null) CoffeeCup = tazaGo.AddComponent<P13CoffeeCup>();
+                    CoffeeCup.InitLiquid();
+
+                    var anomaly = tazaGo.GetComponent<P13Anomaly>();
+                    if (anomaly == null) anomaly = tazaGo.AddComponent<P13Anomaly>();
+                    anomaly.AnomalyId = "Taza de Café";
+                    anomaly.Description = "Taza con líquido misterioso que se autorrellena";
+                    anomaly.DisappearOnReport = true;
+                    anomaly.MaxReportDistance = 3.2f;
+                    anomaly.EnemySpeedMultiplier = 1.0f;
+                    anomaly.AlertDuration = 10f;
+                    anomaly.CustomPrompt = "¿Deseas reportar que encontraste una anomalía? [R]";
+                    anomaly.OnAnomalyReported += () =>
+                    {
+                        CoffeeAnomalyReported = true;
+                    };
+                }
+
+                // 4. Persona Elegante (Servidores CAM 06) - Visible solo en CAM 06, oscilación en Z
+                var personaPrefab = Resources.Load<GameObject>("Models/persona elegante");
+                if (personaPrefab != null)
+                {
+                    var personaGo = Instantiate(personaPrefab);
+                    personaGo.name = "Persona_Elegante_CAM06";
+                    StripBlenderJunk(personaGo);
+                    ApplyModelMaterial(personaGo, "M_PersonaElegante");
+
+                    if (World != null && World.Root != null) personaGo.transform.SetParent(World.Root, false);
+                    personaGo.transform.localPosition = new Vector3(5.89f, 0.08f, -5.13f);
+                    personaGo.transform.localRotation = Quaternion.Euler(0f, -18.5f, 0f);
+                    personaGo.transform.localScale = new Vector3(2f, 2f, 2f);
+
+                    var col = personaGo.GetComponent<BoxCollider>();
+                    if (col == null) col = personaGo.AddComponent<BoxCollider>();
+                    col.center = new Vector3(0f, 0.9f, 0f);
+                    col.size = new Vector3(0.7f, 1.8f, 0.7f);
+
+                    PersonaAnomaly = personaGo.GetComponent<P13PersonaEleganteAnomaly>();
+                    if (PersonaAnomaly == null) PersonaAnomaly = personaGo.AddComponent<P13PersonaEleganteAnomaly>();
+                    PersonaAnomaly.BaseRotation = personaGo.transform.localRotation;
+                    personaGo.SetActive(false);
+                }
+
+                // 5. Cama Sola (Archivo / Habitación)
+                var camaPrefab = Resources.Load<GameObject>("Models/Cama sola");
+                if (camaPrefab != null)
+                {
+                    var camaGo = Instantiate(camaPrefab);
+                    camaGo.name = "Cama_Sola";
+                    StripBlenderJunk(camaGo);
+                    ApplyModelMaterial(camaGo, "M_CamaSola");
+
+                    if (World != null && World.Root != null) camaGo.transform.SetParent(World.Root, false);
+                    camaGo.transform.localPosition = new Vector3(-6.712f, -0.014f, -6.003f);
+                    camaGo.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+                    camaGo.transform.localScale = new Vector3(2f, 2f, 2f);
+
+                    var col = camaGo.GetComponent<BoxCollider>();
+                    if (col == null) col = camaGo.AddComponent<BoxCollider>();
+                    col.center = new Vector3(0f, 0.45f, 0f);
+                    col.size = new Vector3(1.2f, 0.9f, 2.2f);
                 }
             }
             catch (Exception ex)
@@ -396,9 +599,7 @@ namespace Piso13.Realidad
             // Temporizador de modal a los 30 segundos
             if (!modalTriggered && GameTime >= 30f)
             {
-                modalTriggered = true;
-                ShowModal = true;
-                CursorLock(false);
+                TriggerAlertModal();
             }
 
             if (ShowModal)
@@ -407,14 +608,18 @@ namespace Piso13.Realidad
                 return;
             }
 
-            // Barra de Sueño: descenso natural tras cerrar el modal
+            // Barra de Realidad: descenso de 10% cada 5 segundos tras cerrar el modal
             if (ModalDismissed)
             {
                 realityTimer += dt;
-                if (realityTimer >= 10f)
+                if (realityTimer >= 5.0f)
                 {
-                    realityTimer -= 10f;
-                    Sleep = Mathf.Max(0f, Sleep - 2.5f);
+                    realityTimer -= 5.0f;
+                    Sleep = Mathf.Max(0f, Sleep - 10f);
+                    if (Sleep <= 0f && Phase == GamePhase.Playing)
+                    {
+                        TriggerCapture();
+                    }
                 }
             }
 
@@ -424,6 +629,24 @@ namespace Piso13.Realidad
                 messageTimer -= dt;
                 if (messageTimer <= 0) NotificationMessage = "";
             }
+
+            // Pista tras 1 minuto de haber tomado café si no se ha encontrado a la persona elegante
+            if (coffeeTimerActive && !coffeeHintShown)
+            {
+                coffeeDrinkTimer += dt;
+                if (coffeeDrinkTimer >= 60f)
+                {
+                    bool personaFound = (PersonaAnomaly != null && (PersonaAnomaly.HasSpawned || PersonaAnomaly.IsReported));
+                    if (!personaFound)
+                    {
+                        ShowNotification("Creo que debería revisar las cámaras, tal vez encuentre algo.", 4.5f);
+                        coffeeHintShown = true;
+                    }
+                }
+            }
+
+            // Detección de prompt interactivo / reporte
+            UpdateInteractionPrompt();
 
             // Manejo de controles
             HandleInput(dt);
@@ -466,9 +689,13 @@ namespace Piso13.Realidad
             ModalDismissed = true;
             CursorLock(true);
 
-            // Despertar al enemigo para que empiece a patrullar
+            // Despertar al enemigo para que empiece a patrullar y cazar
             if (Enemy != null)
             {
+                if (!Enemy.gameObject.activeSelf)
+                {
+                    SpawnEnemy();
+                }
                 Enemy.StartHunting();
             }
         }
@@ -588,16 +815,48 @@ namespace Piso13.Realidad
             float targetHeight = Crouched ? 1.0f : 1.65f;
             EyeHeight = Mathf.Lerp(EyeHeight, targetHeight, dt * 10f);
 
-            // Tecla E: interactuar exclusivamente con la puerta
-            if (toggleInteract)
+            // Tecla E: interactuar con la taza de café o con la puerta
+            if (toggleInteract && !CCTV && !ShowModal)
             {
-                InteractDoor();
+                bool drank = false;
+                if (View != null)
+                {
+                    Ray ray = new Ray(View.transform.position, View.transform.forward);
+                    RaycastHit hit;
+                    if (Physics.Raycast(ray, out hit, 3.2f))
+                    {
+                        var cup = hit.collider.GetComponentInParent<P13CoffeeCup>();
+                        if (cup != null)
+                        {
+                            if (cup.Drink())
+                            {
+                                ShowNotification("Tomaste un buen café", 3.0f);
+                                coffeeTimerActive = true;
+                                coffeeDrinkTimer = 0f;
+                                coffeeHintShown = false;
+                            }
+                            drank = true;
+                        }
+                    }
+                }
+                if (!drank)
+                {
+                    InteractDoor();
+                }
             }
 
             // Tecla R: reportar anomalía
-            if (toggleReport)
+            if (toggleReport && !ShowModal)
             {
-                ReportAnomaly();
+                if (CCTV)
+                {
+                    // Por las cámaras no se puede reportar anomalías; se debe acudir en persona
+                    ShowNotification("No puedes reportar desde las cámaras. Debes verificar la zona en persona.", 3.0f);
+                }
+                else
+                {
+                    ReportAnomaly();
+                }
             }
 
             // Movimiento
@@ -649,59 +908,170 @@ namespace Piso13.Realidad
             }
         }
 
+        void UpdateInteractionPrompt()
+        {
+            if (Phase != GamePhase.Playing || ShowModal)
+            {
+                CurrentInteractionPrompt = "";
+                return;
+            }
+
+            if (CCTV)
+            {
+                bool isCam06 = CameraIndex == 5;
+                // La persona elegante solo aparece cuando se mira por la cámara 6 y tras haber reportado el café
+                if (isCam06 && CoffeeAnomalyReported && PersonaAnomaly != null && !PersonaAnomaly.HasSpawned && !PersonaAnomaly.IsReported)
+                {
+                    PersonaAnomaly.Spawn();
+                    if (Audio != null) Audio.Spatial("P13_UI_Hover", PersonaAnomaly.transform.position, 0.7f);
+                }
+
+                // Por las cámaras no se puede reportar nada
+                CurrentInteractionPrompt = "";
+                return;
+            }
+
+            if (View != null)
+            {
+                Ray ray = new Ray(View.transform.position, View.transform.forward);
+                RaycastHit hit;
+                if (Physics.Raycast(ray, out hit, 4.5f))
+                {
+                    var persona = hit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>();
+                    if (persona != null && persona.HasSpawned && !persona.IsReported)
+                    {
+                        CurrentInteractionPrompt = persona.GetPrompt();
+                        return;
+                    }
+
+                    var cup = hit.collider.GetComponentInParent<P13CoffeeCup>();
+                    if (cup != null)
+                    {
+                        CurrentInteractionPrompt = cup.GetPrompt();
+                        return;
+                    }
+
+                    var prop = hit.collider.GetComponentInParent<P13ReportableProp>();
+                    if (prop != null)
+                    {
+                        CurrentInteractionPrompt = prop.GetPrompt();
+                        return;
+                    }
+
+                    var anomaly = hit.collider.GetComponentInParent<P13Anomaly>();
+                    if (anomaly != null && anomaly.IsActive && !anomaly.IsReported)
+                    {
+                        CurrentInteractionPrompt = anomaly.GetPrompt();
+                        return;
+                    }
+                }
+            }
+
+            CurrentInteractionPrompt = "";
+        }
+
         void ReportAnomaly()
         {
+            if (View == null) return;
+
             Ray ray = new Ray(View.transform.position, View.transform.forward);
             RaycastHit hit;
-            // Raycast a distancia para detectar lo que el jugador está observando
             bool hitSomething = Physics.Raycast(ray, out hit, 8f);
-
-            bool isAnomaly = false;
-            bool tooFar = false;
-            P13Anomaly anomaly = null;
 
             if (hitSomething && hit.collider != null)
             {
-                anomaly = hit.collider.GetComponentInParent<P13Anomaly>();
-                if (anomaly != null && anomaly.IsActive && !anomaly.IsReported)
+                // 1. Persona Elegante (aparecida en Servidores)
+                var persona = hit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>();
+                if (persona != null && persona.HasSpawned && !persona.IsReported)
                 {
-                    // Distancia prudente para impactar / registrar el reporte
-                    if (hit.distance <= anomaly.MaxReportDistance)
+                    if (hit.distance <= persona.MaxDistance)
                     {
-                        isAnomaly = true;
+                        persona.Report(this);
+                        return;
                     }
                     else
                     {
-                        tooFar = true;
+                        Audio.Spatial("P13_Door_Latch", PlayerPosition, 0.4f);
+                        ShowNotification("Estás demasiado lejos para identificar la anomalía. Acércate más.", 3.0f);
+                        return;
+                    }
+                }
+
+                // 2. Objeto reportable (ej. Cafetera con penalización del 10%)
+                var prop = hit.collider.GetComponentInParent<P13ReportableProp>();
+                if (prop != null)
+                {
+                    if (hit.distance <= prop.MaxDistance)
+                    {
+                        prop.Report(this);
+                        return;
+                    }
+                    else
+                    {
+                        Audio.Spatial("P13_Door_Latch", PlayerPosition, 0.4f);
+                        ShowNotification("Estás demasiado lejos para identificar la anomalía. Acércate más.", 3.0f);
+                        return;
+                    }
+                }
+
+                // 3. Anomalía real (Reloj Pentagrama, Taza, etc.)
+                var anomaly = hit.collider.GetComponentInParent<P13Anomaly>();
+                if (anomaly != null && anomaly.IsActive && !anomaly.IsReported)
+                {
+                    if (hit.distance <= anomaly.MaxReportDistance)
+                    {
+                        string anomId = anomaly.AnomalyId;
+                        anomaly.Report();
+
+                        if (anomId == "Taza de Café")
+                        {
+                            CoffeeAnomalyReported = true;
+                        }
+
+                        // Aumentar contador de realidad en 10%
+                        Reality = Mathf.Min(100f, Reality + 10f);
+
+                        // Ralentizar al enemigo durante 10 segundos
+                        if (Enemy != null)
+                        {
+                            Enemy.ApplySlow(10f, 0.5f);
+                        }
+
+                        Audio.Spatial("P13_UI_Hover", PlayerPosition, 0.8f);
+                        ShowNotification($"¡ANOMALÍA ENCONTRADA!: {anomId} (+10% Realidad)", 3.5f);
+
+                        // Si se encuentra la primera anomalía (reloj o taza) antes de los 30 segundos iniciales
+                        if (!modalTriggered && (anomId == "Reloj Pentagrama" || anomId == "Taza de Café"))
+                        {
+                            TriggerAlertModal();
+                        }
+
+                        return;
+                    }
+                    else
+                    {
+                        Audio.Spatial("P13_Door_Latch", PlayerPosition, 0.4f);
+                        ShowNotification("Estás demasiado lejos para identificar la anomalía. Acércate más.", 3.0f);
+                        return;
                     }
                 }
             }
 
-            if (isAnomaly && anomaly != null)
-            {
-                anomaly.Report();
-                Audio.Spatial("P13_UI_Hover", PlayerPosition, 0.8f);
-                ShowNotification($"¡ANOMALÍA ENCONTRADA!: {anomaly.AnomalyId}");
-            }
-            else if (tooFar && anomaly != null)
-            {
-                // Si está mirando la anomalía pero supera la distancia prudente
-                Audio.Spatial("P13_Door_Latch", PlayerPosition, 0.4f);
-                ShowNotification("Estás demasiado lejos para identificar la anomalía. Acércate más.");
-            }
-            else
-            {
-                // Falsa alarma: baja el 15% del valor actual de Sueño
-                float penalty = Sleep * 0.15f;
-                Sleep = Mathf.Max(0f, Sleep - penalty);
+            // 3. Falsa alarma genérica
+            TriggerFalseAlarm();
+        }
 
-                Audio.Spatial("P13_Door_Latch", PlayerPosition, 0.6f);
-                ShowNotification(string.Format("FALSA ALARMA: No hay anomalía (-15% Sueño: {0}%)", Mathf.CeilToInt(Sleep)));
+        void TriggerFalseAlarm()
+        {
+            float penalty = 10f; // Penalización del 10%
+            Sleep = Mathf.Max(0f, Sleep - penalty);
 
-                if (Enemy != null)
-                {
-                    Enemy.AlertNoise(PlayerPosition, 0.65f);
-                }
+            Audio.Spatial("P13_Door_Latch", PlayerPosition, 0.6f);
+            ShowNotification(string.Format("FALSA ALARMA: No hay anomalía (-10% Realidad: {0}%)", Mathf.CeilToInt(Reality)), 3.2f);
+
+            if (Enemy != null)
+            {
+                Enemy.AlertNoise(PlayerPosition, 0.65f);
             }
         }
 
@@ -711,10 +1081,10 @@ namespace Piso13.Realidad
             Audio.Spatial("P13_UI_Hover", View.transform.position, 0.3f);
         }
 
-        public void ShowNotification(string msg)
+        public void ShowNotification(string msg, float duration = 3.2f)
         {
             NotificationMessage = msg;
-            messageTimer = 3.2f;
+            messageTimer = duration;
         }
 
         void UpdateCameraView(float dt)
