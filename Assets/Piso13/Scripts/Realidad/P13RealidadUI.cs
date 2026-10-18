@@ -129,9 +129,16 @@ namespace Piso13.Realidad
             // Prompt de interacción / reporte en pantalla (centrado bajo la retícula)
             if (!string.IsNullOrEmpty(Game.CurrentInteractionPrompt))
             {
-                var promptRect = new Rect(Width / 2 - 275, Height / 2 + 25, 550, 34);
-                Panel(promptRect, 0.88f, new Color(0.04f, 0.08f, 0.10f, 0.88f));
-                GUI.Label(promptRect, Game.CurrentInteractionPrompt, body);
+                var promptRect = new Rect(Width / 2 - 425, Height / 2 + 25, 850, 38);
+                Panel(promptRect, 0.90f, new Color(0.04f, 0.08f, 0.10f, 0.92f));
+                var promptStyle = new GUIStyle(body)
+                {
+                    fontSize = 17,
+                    fontStyle = FontStyle.Bold,
+                    alignment = TextAnchor.MiddleCenter
+                };
+                promptStyle.normal.textColor = ink;
+                GUI.Label(promptRect, Game.CurrentInteractionPrompt, promptStyle);
             }
 
             // 1. Panel Superior Izquierdo: Reloj y Estado

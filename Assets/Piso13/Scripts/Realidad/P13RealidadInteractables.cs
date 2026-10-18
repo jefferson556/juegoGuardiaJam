@@ -22,7 +22,7 @@ namespace Piso13.Realidad
         public float fullHeight = 0.52f;
         public float emptyHeight = 0.08f;
         public float refillDelay = 10f;
-        public float maxInteractionDistance = 3.2f;
+        public float maxInteractionDistance = 2.0f;
 
         Transform liquid;
         Material liquidMaterial;
@@ -93,9 +93,9 @@ namespace Piso13.Realidad
         public string GetPrompt()
         {
             if (hasCoffee)
-                return "Tomar café [E]  ·  ¿Deseas reportar que encontraste una anomalía? [R]";
+                return "Taza de Café: Tomar café [E]  ·  ¿Deseas reportar que encontraste una anomalía? [R]";
             else
-                return "Taza vacía  ·  ¿Deseas reportar que encontraste una anomalía? [R]";
+                return "Taza de Café (Vacía): ¿Deseas reportar que encontraste una anomalía? [R]";
         }
 
         public event Action OnCoffeeConsumed;
@@ -191,11 +191,15 @@ namespace Piso13.Realidad
         public string PropId = "Prop";
         public bool IsFakeAnomaly = true;
         public float PenaltyPercent = 10f;
-        public float MaxDistance = 3.5f;
-        public string CustomPrompt = "¿Deseas reportar que encontraste una anomalía? [R]";
+        public float MaxDistance = 2.2f;
+        public string CustomPrompt = "";
         public string FakeMessage = "FALSA ALARMA: La cafetera no es una anomalía (-10% Realidad)";
 
-        public string GetPrompt() => CustomPrompt;
+        public string GetPrompt()
+        {
+            if (!string.IsNullOrEmpty(CustomPrompt)) return CustomPrompt;
+            return $"{PropId}: ¿Deseas reportar que encontraste una anomalía? [R]";
+        }
 
         public void Report(P13RealidadGame game)
         {
@@ -234,7 +238,7 @@ namespace Piso13.Realidad
         public Quaternion BaseRotation;
         public bool HasSpawned = false;
         public bool IsReported = false;
-        public float MaxDistance = 4.5f;
+        public float MaxDistance = 2.5f;
 
         void Awake()
         {
@@ -262,7 +266,7 @@ namespace Piso13.Realidad
 
         public string GetPrompt()
         {
-            return "¿Deseas reportar que encontraste una anomalía? [R]";
+            return "Persona Elegante: ¿Deseas reportar que encontraste una anomalía? [R]";
         }
 
         public bool Report(P13RealidadGame game)

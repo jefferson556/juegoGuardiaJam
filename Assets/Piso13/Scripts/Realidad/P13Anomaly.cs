@@ -25,11 +25,15 @@ namespace Piso13.Realidad
         [Tooltip("Indica si el objeto desaparece del mapa al ser reportado con éxito")]
         public bool DisappearOnReport = true;
         [Tooltip("Distancia máxima prudente para reportar esta anomalía (en metros)")]
-        public float MaxReportDistance = 3.8f;
+        public float MaxReportDistance = 2.2f;
         [Tooltip("Texto para el prompt de interacción en pantalla")]
-        public string CustomPrompt = "¿Deseas reportar que encontraste una anomalía? [R]";
+        public string CustomPrompt = "";
 
-        public string GetPrompt() => CustomPrompt;
+        public string GetPrompt()
+        {
+            if (!string.IsNullOrEmpty(CustomPrompt)) return CustomPrompt;
+            return $"{AnomalyId}: ¿Deseas reportar que encontraste una anomalía? [R]";
+        }
 
         public event Action OnAnomalyReported;
 

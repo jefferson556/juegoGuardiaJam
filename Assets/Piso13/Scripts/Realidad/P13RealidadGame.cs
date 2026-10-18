@@ -393,10 +393,10 @@ namespace Piso13.Realidad
                     anomaly.AnomalyId = "Reloj Pentagrama";
                     anomaly.Description = "Reloj con un pentagrama en la pared derecha de la oficina";
                     anomaly.DisappearOnReport = true;
-                    anomaly.MaxReportDistance = 3.8f;
+                    anomaly.MaxReportDistance = 2.2f;
                     anomaly.EnemySpeedMultiplier = 1.0f;
                     anomaly.AlertDuration = 10f;
-                    anomaly.CustomPrompt = "¿Deseas reportar que encontraste una anomalía? [R]";
+                    anomaly.CustomPrompt = "Reloj Pentagrama: ¿Deseas reportar que encontraste una anomalía? [R]";
                 }
 
                 // 2. Cafetera (Mesa Recepción junto a la taza) - Reportable como falsa anomalía (-10% Barra)
@@ -416,15 +416,15 @@ namespace Piso13.Realidad
                     var col = cafeGo.GetComponent<BoxCollider>();
                     if (col == null) col = cafeGo.AddComponent<BoxCollider>();
                     col.center = new Vector3(0f, 0.45f, 0f);
-                    col.size = new Vector3(0.7f, 0.9f, 0.7f);
+                    col.size = new Vector3(1.1f, 1.0f, 1.1f);
 
                     var prop = cafeGo.GetComponent<P13ReportableProp>();
                     if (prop == null) prop = cafeGo.AddComponent<P13ReportableProp>();
                     prop.PropId = "Cafetera";
                     prop.IsFakeAnomaly = true;
                     prop.PenaltyPercent = 10f;
-                    prop.MaxDistance = 3.5f;
-                    prop.CustomPrompt = "¿Deseas reportar que encontraste una anomalía? [R]";
+                    prop.MaxDistance = 2.2f;
+                    prop.CustomPrompt = "Cafetera: ¿Deseas reportar que encontraste una anomalía? [R]";
                     prop.FakeMessage = "FALSA ALARMA: La cafetera no es una anomalía (-10% Realidad)";
                 }
 
@@ -456,10 +456,10 @@ namespace Piso13.Realidad
                     anomaly.AnomalyId = "Taza de Café";
                     anomaly.Description = "Taza con líquido misterioso que se autorrellena";
                     anomaly.DisappearOnReport = true;
-                    anomaly.MaxReportDistance = 3.2f;
+                    anomaly.MaxReportDistance = 2.2f;
                     anomaly.EnemySpeedMultiplier = 1.0f;
                     anomaly.AlertDuration = 10f;
-                    anomaly.CustomPrompt = "¿Deseas reportar que encontraste una anomalía? [R]";
+                    anomaly.CustomPrompt = "Taza de Café: ¿Deseas reportar que encontraste una anomalía? [R]";
                     anomaly.OnAnomalyReported += () =>
                     {
                         CoffeeAnomalyReported = true;
@@ -487,6 +487,7 @@ namespace Piso13.Realidad
 
                     PersonaAnomaly = personaGo.GetComponent<P13PersonaEleganteAnomaly>();
                     if (PersonaAnomaly == null) PersonaAnomaly = personaGo.AddComponent<P13PersonaEleganteAnomaly>();
+                    PersonaAnomaly.MaxDistance = 2.5f;
                     PersonaAnomaly.BaseRotation = personaGo.transform.localRotation;
                     personaGo.SetActive(false);
                 }
@@ -498,7 +499,26 @@ namespace Piso13.Realidad
                     var camaGo = Instantiate(camaPrefab);
                     camaGo.name = "Cama_Sola";
                     StripBlenderJunk(camaGo);
-                    ApplyModelMaterial(camaGo, "M_CamaSola");
+
+                    var matEstructura = Resources.Load<Material>("Models/Materials/M_CamaSola");
+                    var matRopa = Resources.Load<Material>("Models/Materials/M_CamaSola_Part2");
+
+                    foreach (var r in camaGo.GetComponentsInChildren<Renderer>(true))
+                    {
+                        if (r.gameObject.name.Contains("Colchon") || r.gameObject.name.Contains("Almohada") || r.gameObject.name.Contains("Manta"))
+                        {
+                            if (matRopa != null) r.sharedMaterial = matRopa;
+                        }
+                        else
+                        {
+                            if (matEstructura != null)
+                            {
+                                var mats = new Material[r.sharedMaterials.Length];
+                                for (int i = 0; i < mats.Length; i++) mats[i] = matEstructura;
+                                r.sharedMaterials = mats;
+                            }
+                        }
+                    }
 
                     if (World != null && World.Root != null) camaGo.transform.SetParent(World.Root, false);
                     camaGo.transform.localPosition = new Vector3(-6.712f, -0.014f, -6.003f);
@@ -507,8 +527,8 @@ namespace Piso13.Realidad
 
                     var col = camaGo.GetComponent<BoxCollider>();
                     if (col == null) col = camaGo.AddComponent<BoxCollider>();
-                    col.center = new Vector3(0f, 0.45f, 0f);
-                    col.size = new Vector3(1.2f, 0.9f, 2.2f);
+                    col.center = new Vector3(0f, 0.20f, 0.02f);
+                    col.size = new Vector3(0.55f, 0.40f, 1.05f);
                 }
             }
             catch (Exception ex)
@@ -823,7 +843,7 @@ namespace Piso13.Realidad
                 {
                     Ray ray = new Ray(View.transform.position, View.transform.forward);
                     RaycastHit hit;
-                    if (Physics.Raycast(ray, out hit, 3.2f))
+                    if (Physics.Raycast(ray, out hit, 2.0f))
                     {
                         var cup = hit.collider.GetComponentInParent<P13CoffeeCup>();
                         if (cup != null)
@@ -933,9 +953,30 @@ namespace Piso13.Realidad
 
             if (View != null)
             {
+                float checkDist = 2.2f;
                 Ray ray = new Ray(View.transform.position, View.transform.forward);
                 RaycastHit hit;
-                if (Physics.Raycast(ray, out hit, 4.5f))
+                bool hasHit = Physics.Raycast(ray, out hit, checkDist);
+                if (!hasHit || (hit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() == null &&
+                                hit.collider.GetComponentInParent<P13ReportableProp>() == null &&
+                                hit.collider.GetComponentInParent<P13CoffeeCup>() == null &&
+                                hit.collider.GetComponentInParent<P13Anomaly>() == null))
+                {
+                    RaycastHit sHit;
+                    if (Physics.SphereCast(ray, 0.16f, out sHit, checkDist))
+                    {
+                        if (sHit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() != null ||
+                            sHit.collider.GetComponentInParent<P13ReportableProp>() != null ||
+                            sHit.collider.GetComponentInParent<P13CoffeeCup>() != null ||
+                            sHit.collider.GetComponentInParent<P13Anomaly>() != null)
+                        {
+                            hit = sHit;
+                            hasHit = true;
+                        }
+                    }
+                }
+
+                if (hasHit && hit.collider != null)
                 {
                     var persona = hit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>();
                     if (persona != null && persona.HasSpawned && !persona.IsReported)
@@ -944,17 +985,17 @@ namespace Piso13.Realidad
                         return;
                     }
 
-                    var cup = hit.collider.GetComponentInParent<P13CoffeeCup>();
-                    if (cup != null)
-                    {
-                        CurrentInteractionPrompt = cup.GetPrompt();
-                        return;
-                    }
-
                     var prop = hit.collider.GetComponentInParent<P13ReportableProp>();
                     if (prop != null)
                     {
                         CurrentInteractionPrompt = prop.GetPrompt();
+                        return;
+                    }
+
+                    var cup = hit.collider.GetComponentInParent<P13CoffeeCup>();
+                    if (cup != null)
+                    {
+                        CurrentInteractionPrompt = cup.GetPrompt();
                         return;
                     }
 
@@ -974,9 +1015,26 @@ namespace Piso13.Realidad
         {
             if (View == null) return;
 
+            float reportDist = 2.5f;
             Ray ray = new Ray(View.transform.position, View.transform.forward);
             RaycastHit hit;
-            bool hitSomething = Physics.Raycast(ray, out hit, 8f);
+            bool hitSomething = Physics.Raycast(ray, out hit, reportDist);
+            if (!hitSomething || (hit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() == null &&
+                                 hit.collider.GetComponentInParent<P13ReportableProp>() == null &&
+                                 hit.collider.GetComponentInParent<P13Anomaly>() == null))
+            {
+                RaycastHit sHit;
+                if (Physics.SphereCast(ray, 0.18f, out sHit, reportDist))
+                {
+                    if (sHit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() != null ||
+                        sHit.collider.GetComponentInParent<P13ReportableProp>() != null ||
+                        sHit.collider.GetComponentInParent<P13Anomaly>() != null)
+                    {
+                        hit = sHit;
+                        hitSomething = true;
+                    }
+                }
+            }
 
             if (hitSomething && hit.collider != null)
             {
