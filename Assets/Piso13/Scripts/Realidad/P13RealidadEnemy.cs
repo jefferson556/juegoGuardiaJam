@@ -170,6 +170,7 @@ namespace Piso13.Realidad
 
         public void InitNavigation(P13RealidadWorld world)
         {
+            if (world == null) return;
             navigation = new P13RealidadNavigation(world);
             if (navigation != null)
             {
@@ -192,6 +193,8 @@ namespace Piso13.Realidad
 
         public void TriggerMapEvent(string eventId, Vector3 eventPosition, float speedMultiplier = 1.5f, float duration = 10f)
         {
+            if (Game != null && Game.IsPhoneCallActive) return;
+
             HasActiveEvent = true;
             ActiveEventId = eventId;
             EventTargetPos = eventPosition;
@@ -210,6 +213,7 @@ namespace Piso13.Realidad
 
         public void AlertNoise(Vector3 noisePos, float intensity = 1f)
         {
+            if (Game != null && Game.IsPhoneCallActive) return;
             if (!IsHunting || State == RealidadEnemyState.AtDoor) return;
 
             float dist = Vector3.Distance(Position, noisePos);

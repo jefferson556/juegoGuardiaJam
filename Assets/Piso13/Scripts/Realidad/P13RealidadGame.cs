@@ -70,6 +70,17 @@ namespace Piso13.Realidad
         [Tooltip("Escala del modelo")]
         public Vector3 ClockAnomalyScale = Vector3.one;
 
+        [Header("Configuración Teléfono Vintage Rojo")]
+        [Tooltip("Posición del teléfono")]
+        public Vector3 PhonePosition = new Vector3(1.309f, 0.987f, 0.913f);
+        [Tooltip("Rotación en grados Euler del teléfono")]
+        public Vector3 PhoneRotation = new Vector3(0f, 139.907f, 0f);
+        [Tooltip("Escala del modelo de teléfono")]
+        public Vector3 PhoneScale = new Vector3(0.5f, 0.5f, 0.5f);
+        public P13VintagePhone VintagePhone { get; private set; }
+        public bool IsPhoneCallActive { get; private set; }
+        public bool IsPlayerMovementFrozen { get; private set; }
+
         // Componentes internos
         Light flashlight;
         Light officeDoorLight;
@@ -81,6 +92,7 @@ namespace Piso13.Realidad
         float messageTimer = 0f;
         float captureTime = 0f;
         bool modalTriggered = false;
+        bool pendingAlertModal = false;
         Vector2 cctvLook = Vector2.zero;
 
         void Awake()
@@ -138,6 +150,7 @@ namespace Piso13.Realidad
             ShowModal = false;
             ModalDismissed = false;
             modalTriggered = false;
+            pendingAlertModal = false;
             CCTV = false;
             minuteTimer = 0f;
             realityTimer = 0f;
@@ -235,7 +248,7 @@ namespace Piso13.Realidad
             var oldEnemy = GameObject.Find("RealidadEnemy");
             if (oldEnemy != null) SafeDestroy(oldEnemy);
 
-            foreach (var n in new[] { "Clock_Pentagram", "Cafetera", "Taza_Cafe", "Persona_Elegante_CAM06", "Cama_Sola" })
+            foreach (var n in new[] { "Clock_Pentagram", "Cafetera", "Taza_Cafe", "Persona_Elegante_CAM06", "Cama_Sola", "Telefono_Vintage_Rojo" })
             {
                 GameObject obj;
                 while ((obj = GameObject.Find(n)) != null) SafeDestroy(obj);
@@ -346,7 +359,16 @@ namespace Piso13.Realidad
         public void TriggerAlertModal()
         {
             if (modalTriggered) return;
+
+            // Si la llamada está en curso, posponer el cartel hasta que finalice todo el proceso
+            if (IsPhoneCallActive)
+            {
+                pendingAlertModal = true;
+                return;
+            }
+
             modalTriggered = true;
+            pendingAlertModal = false;
             ShowModal = true;
             CursorLock(false);
 
@@ -363,7 +385,10 @@ namespace Piso13.Realidad
                     Enemy.gameObject.SetActive(true);
                 }
                 Enemy.ApplySpawnPosition();
-                Enemy.InitNavigation(World);
+                if (World != null)
+                {
+                    Enemy.InitNavigation(World);
+                }
                 Debug.Log("[P13RealidadGame] Enemigo spawneado en el mapa.");
             }
         }
@@ -372,31 +397,28 @@ namespace Piso13.Realidad
         {
             try
             {
-                // 1. Reloj Pentagrama en la pared derecha de la oficina
-                var clockPrefab = Resources.Load<GameObject>("Models/Clock_Pentagram");
-                if (clockPrefab != null)
+                // 1. Teléfono Vintage Rojo (no es hijo de nada, posición global 1.338, 0.575, 0.913)
+                var phonePrefab = Resources.Load<GameObject>("Models/telefono vintage rojo");
+                if (phonePrefab != null)
                 {
-                    var clockGo = Instantiate(clockPrefab);
-                    clockGo.name = "Clock_Pentagram";
-                    if (World != null && World.Root != null) clockGo.transform.SetParent(World.Root, false);
-                    clockGo.transform.localPosition = ClockAnomalyPosition;
-                    clockGo.transform.localRotation = Quaternion.Euler(ClockAnomalyRotation);
-                    clockGo.transform.localScale = ClockAnomalyScale;
+                    var phoneGo = Instantiate(phonePrefab);
+                    phoneGo.name = "Telefono_Vintage_Rojo";
+                    StripBlenderJunk(phoneGo);
+                    ApplyModelMaterial(phoneGo, "M_TelefonoVintage");
 
-                    var col = clockGo.GetComponent<BoxCollider>();
-                    if (col == null) col = clockGo.AddComponent<BoxCollider>();
-                    col.center = new Vector3(0f, 0f, 0.02f);
-                    col.size = new Vector3(0.35f, 0.35f, 0.12f);
+                    phoneGo.transform.parent = null; // No es hijo de nada
+                    phoneGo.transform.position = PhonePosition;
+                    phoneGo.transform.rotation = Quaternion.Euler(PhoneRotation);
+                    phoneGo.transform.localScale = PhoneScale;
 
-                    var anomaly = clockGo.GetComponent<P13Anomaly>();
-                    if (anomaly == null) anomaly = clockGo.AddComponent<P13Anomaly>();
-                    anomaly.AnomalyId = "Reloj Pentagrama";
-                    anomaly.Description = "Reloj con un pentagrama en la pared derecha de la oficina";
-                    anomaly.DisappearOnReport = true;
-                    anomaly.MaxReportDistance = 2.2f;
-                    anomaly.EnemySpeedMultiplier = 1.0f;
-                    anomaly.AlertDuration = 10f;
-                    anomaly.CustomPrompt = "Reloj Pentagrama: ¿Deseas reportar que encontraste una anomalía? [R]";
+                    var col = phoneGo.GetComponent<BoxCollider>();
+                    if (col == null) col = phoneGo.AddComponent<BoxCollider>();
+                    col.center = new Vector3(0f, 0.4f, 0f);
+                    col.size = new Vector3(1.6f, 1.0f, 1.6f); // Tamaño duplicado para fácil detección
+
+                    VintagePhone = phoneGo.AddComponent<P13VintagePhone>();
+                    VintagePhone.Game = this;
+                    VintagePhone.SetupAudioSources();
                 }
 
                 // 2. Cafetera (Mesa Recepción junto a la taza) - Reportable como falsa anomalía (-10% Barra)
@@ -671,8 +693,8 @@ namespace Piso13.Realidad
             // Manejo de controles
             HandleInput(dt);
 
-            // Tick del enemigo
-            if (Enemy != null)
+            // Tick del enemigo (no se mueve hasta que termine la llamada)
+            if (Enemy != null && !IsPhoneCallActive)
             {
                 Enemy.Tick(dt);
             }
@@ -820,7 +842,17 @@ namespace Piso13.Realidad
                 Pitch = Mathf.Clamp(Pitch - mouseDelta.y * 2.0f, -65f, 65f);
             }
 
-            if (toggleFlash)
+            if (IsPlayerMovementFrozen)
+            {
+                h = 0f;
+                v = 0f;
+                sprint = false;
+                toggleCrouch = false;
+                toggleReport = false;
+                toggleCCTV = false;
+            }
+
+            if (toggleFlash && !IsPlayerMovementFrozen)
             {
                 Flashlight = !Flashlight;
                 if (flashlight) flashlight.enabled = Flashlight;
@@ -828,18 +860,48 @@ namespace Piso13.Realidad
                 Audio.Spatial("P13_UI_Hover", PlayerPosition, 0.4f);
             }
 
-            if (toggleCrouch)
+            if (toggleCrouch && !IsPlayerMovementFrozen)
             {
                 Crouched = !Crouched;
             }
             float targetHeight = Crouched ? 1.0f : 1.65f;
             EyeHeight = Mathf.Lerp(EyeHeight, targetHeight, dt * 10f);
 
-            // Tecla E: interactuar con la taza de café o con la puerta
-            if (toggleInteract && !CCTV && !ShowModal)
+            // Tecla E: interactuar con el teléfono vintage, con la taza de café o con la puerta
+            if (toggleInteract && !CCTV && !ShowModal && !IsPlayerMovementFrozen)
             {
-                bool drank = false;
-                if (View != null)
+                bool interacted = false;
+
+                // 1. Contestar teléfono si está timbrando cerca
+                if (VintagePhone != null && VintagePhone.CanAnswer)
+                {
+                    float distToPhone = Vector3.Distance(PlayerPosition, VintagePhone.transform.position);
+                    if (distToPhone <= VintagePhone.ProximityDistance + 1.2f)
+                    {
+                        if (VintagePhone.AnswerCall())
+                        {
+                            interacted = true;
+                        }
+                    }
+                }
+
+                // 2. O apuntando directamente con la mirada hacia el teléfono
+                if (!interacted && View != null && VintagePhone != null && VintagePhone.CanAnswer)
+                {
+                    Ray ray = new Ray(View.transform.position, View.transform.forward);
+                    RaycastHit hit;
+                    if (Physics.Raycast(ray, out hit, 3.5f))
+                    {
+                        var phone = hit.collider.GetComponentInParent<P13VintagePhone>();
+                        if (phone != null && phone.CanAnswer)
+                        {
+                            if (phone.AnswerCall()) interacted = true;
+                        }
+                    }
+                }
+
+                // 2. Interactuar con la taza de café
+                if (!interacted && View != null)
                 {
                     Ray ray = new Ray(View.transform.position, View.transform.forward);
                     RaycastHit hit;
@@ -855,18 +917,20 @@ namespace Piso13.Realidad
                                 coffeeDrinkTimer = 0f;
                                 coffeeHintShown = false;
                             }
-                            drank = true;
+                            interacted = true;
                         }
                     }
                 }
-                if (!drank)
+
+                // 3. Interactuar con la puerta
+                if (!interacted)
                 {
                     InteractDoor();
                 }
             }
 
             // Tecla R: reportar anomalía
-            if (toggleReport && !ShowModal)
+            if (toggleReport && !ShowModal && !IsPlayerMovementFrozen)
             {
                 if (CCTV)
                 {
@@ -951,24 +1015,44 @@ namespace Piso13.Realidad
                 return;
             }
 
+            // Si la llamada está activa o el jugador congelado, no mostrar prompts
+            if (IsPlayerMovementFrozen || IsPhoneCallActive)
+            {
+                CurrentInteractionPrompt = "";
+                return;
+            }
+
+            // Oportunidad de contestar el teléfono vintage por proximidad
+            if (VintagePhone != null && VintagePhone.CanAnswer)
+            {
+                float distToPhone = Vector3.Distance(PlayerPosition, VintagePhone.transform.position);
+                if (distToPhone <= VintagePhone.ProximityDistance + 1.2f)
+                {
+                    CurrentInteractionPrompt = "Teléfono: Presiona [E] para contestar";
+                    return;
+                }
+            }
+
             if (View != null)
             {
-                float checkDist = 2.2f;
+                float checkDist = 2.6f;
                 Ray ray = new Ray(View.transform.position, View.transform.forward);
                 RaycastHit hit;
                 bool hasHit = Physics.Raycast(ray, out hit, checkDist);
                 if (!hasHit || (hit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() == null &&
                                 hit.collider.GetComponentInParent<P13ReportableProp>() == null &&
                                 hit.collider.GetComponentInParent<P13CoffeeCup>() == null &&
-                                hit.collider.GetComponentInParent<P13Anomaly>() == null))
+                                hit.collider.GetComponentInParent<P13Anomaly>() == null &&
+                                hit.collider.GetComponentInParent<P13VintagePhone>() == null))
                 {
                     RaycastHit sHit;
-                    if (Physics.SphereCast(ray, 0.16f, out sHit, checkDist))
+                    if (Physics.SphereCast(ray, 0.25f, out sHit, checkDist))
                     {
                         if (sHit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>() != null ||
                             sHit.collider.GetComponentInParent<P13ReportableProp>() != null ||
                             sHit.collider.GetComponentInParent<P13CoffeeCup>() != null ||
-                            sHit.collider.GetComponentInParent<P13Anomaly>() != null)
+                            sHit.collider.GetComponentInParent<P13Anomaly>() != null ||
+                            sHit.collider.GetComponentInParent<P13VintagePhone>() != null)
                         {
                             hit = sHit;
                             hasHit = true;
@@ -978,6 +1062,12 @@ namespace Piso13.Realidad
 
                 if (hasHit && hit.collider != null)
                 {
+                    var phone = hit.collider.GetComponentInParent<P13VintagePhone>();
+                    if (phone != null && phone.CanAnswer)
+                    {
+                        CurrentInteractionPrompt = "Teléfono: Presiona [E] para contestar";
+                        return;
+                    }
                     var persona = hit.collider.GetComponentInParent<P13PersonaEleganteAnomaly>();
                     if (persona != null && persona.HasSpawned && !persona.IsReported)
                     {
@@ -1164,17 +1254,113 @@ namespace Piso13.Realidad
 
             if (hand)
             {
-                hand.gameObject.SetActive(Flashlight);
-                float amp = Crouched ? 0.00065f : IsSprinting ? 0.013f : 0.004f;
-                var desired = new Vector3(Mathf.Sin(headPhase) * amp * 0.6f, Mathf.Cos(headPhase * 2) * amp, Mathf.Sin(headPhase * 2) * amp * 0.3f);
+                if (IsPhoneCallActive)
+                {
+                    hand.gameObject.SetActive(false);
+                }
+                else
+                {
+                    hand.gameObject.SetActive(Flashlight);
+                    float amp = Crouched ? 0.00065f : IsSprinting ? 0.013f : 0.004f;
+                    var desired = new Vector3(Mathf.Sin(headPhase) * amp * 0.6f, Mathf.Cos(headPhase * 2) * amp, Mathf.Sin(headPhase * 2) * amp * 0.3f);
 
-                bool blocked = World != null && !World.Clear(View.transform.position, View.transform.TransformPoint(new Vector3(0.18f, -0.16f, 0.8f)), 0.12f);
-                if (blocked) desired += new Vector3(-0.08f, -0.035f, -0.36f);
+                    bool blocked = World != null && !World.Clear(View.transform.position, View.transform.TransformPoint(new Vector3(0.18f, -0.16f, 0.8f)), 0.12f);
+                    if (blocked) desired += new Vector3(-0.08f, -0.035f, -0.36f);
 
-                hand.localPosition = blocked ? desired : Vector3.Lerp(hand.localPosition, desired, dt * 14f);
+                    hand.localPosition = blocked ? desired : Vector3.Lerp(hand.localPosition, desired, dt * 14f);
+                }
             }
 
+            if (flashlight) flashlight.enabled = Flashlight && !IsPhoneCallActive;
+        }
+
+        public void OnPhoneCallStarted()
+        {
+            IsPhoneCallActive = true;
+            IsPlayerMovementFrozen = true;
+            if (hand) hand.gameObject.SetActive(false);
+            if (flashlight) flashlight.enabled = false;
+
+            // Si contesta el teléfono, el enemigo hace respawn donde apareció al inicio
+            // y no se va a mover hasta que termine la llamada
+            if (Enemy != null)
+            {
+                Enemy.ApplySpawnPosition();
+                Enemy.PlayAnimation("idle");
+                Enemy.Speed = 0f;
+            }
+        }
+
+        public void OnPhoneCallEnded()
+        {
+            IsPhoneCallActive = false;
+            IsPlayerMovementFrozen = false;
             if (flashlight) flashlight.enabled = Flashlight;
+            if (hand) hand.gameObject.SetActive(Flashlight);
+
+            // Si contestó antes de que apareciera el cartel, recién ahí aparece tras terminar la llamada
+            if (pendingAlertModal || (!modalTriggered && GameTime >= 30f))
+            {
+                pendingAlertModal = false;
+                TriggerAlertModal();
+            }
+            else if (ModalDismissed && Enemy != null && Enemy.gameObject.activeSelf)
+            {
+                // Si el modal ya se había cerrado antes de la llamada, el enemigo reanuda su caza desde el punto de spawn
+                Enemy.StartHunting();
+            }
+        }
+
+        public void SpawnClockPentagramAnomaly()
+        {
+            try
+            {
+                if (World != null && World.Root != null)
+                {
+                    var existing = World.Root.Find("Clock_Pentagram");
+                    if (existing != null)
+                    {
+                        existing.gameObject.SetActive(true);
+                        return;
+                    }
+                }
+
+                var clockPrefab = Resources.Load<GameObject>("Models/Clock_Pentagram");
+                if (clockPrefab != null)
+                {
+                    var clockGo = Instantiate(clockPrefab);
+                    clockGo.name = "Clock_Pentagram";
+                    if (World != null && World.Root != null) clockGo.transform.SetParent(World.Root, false);
+                    clockGo.transform.localPosition = ClockAnomalyPosition;
+                    clockGo.transform.localRotation = Quaternion.Euler(ClockAnomalyRotation);
+                    clockGo.transform.localScale = ClockAnomalyScale;
+
+                    var col = clockGo.GetComponent<BoxCollider>();
+                    if (col == null) col = clockGo.AddComponent<BoxCollider>();
+                    col.center = new Vector3(0f, 0f, 0.02f);
+                    col.size = new Vector3(0.35f, 0.35f, 0.12f);
+
+                    var anomaly = clockGo.GetComponent<P13Anomaly>();
+                    if (anomaly == null) anomaly = clockGo.AddComponent<P13Anomaly>();
+                    anomaly.AnomalyId = "Reloj Pentagrama";
+                    anomaly.Description = "Reloj con un pentagrama en la pared derecha de la oficina";
+                    anomaly.DisappearOnReport = true;
+                    anomaly.MaxReportDistance = 2.2f;
+                    anomaly.EnemySpeedMultiplier = 1.0f;
+                    anomaly.AlertDuration = 10f;
+                    anomaly.CustomPrompt = "Reloj Pentagrama: ¿Deseas reportar que encontraste una anomalía? [R]";
+
+                    var rotator = clockGo.GetComponent<P13ClockHandsRotator>();
+                    if (rotator == null) rotator = clockGo.AddComponent<P13ClockHandsRotator>();
+                    rotator.FindHands();
+
+                    Debug.Log("[P13RealidadGame] Reloj Pentagrama spawneado tras terminar la llamada.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("Error al spawnear Reloj Pentagrama: " + ex.Message);
+            }
         }
 
         public void TriggerCapture()
