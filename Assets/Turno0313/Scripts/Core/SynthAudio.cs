@@ -44,6 +44,54 @@ namespace Turno0313
             return Make("Estática (sintetizada)", data);
         }
 
+        // Fluorescent tube hum: 100 Hz and its harmonics with a little hiss. 2 s that loop cleanly.
+        public static AudioClip Hum(float seconds = 2f)
+        {
+            int total = Mathf.CeilToInt(seconds * Rate);
+            var data = new float[total];
+            var random = new System.Random(13);
+            for (int i = 0; i < total; i++)
+            {
+                float t = (float)i / Rate, w = 2 * Mathf.PI * t;
+                float v = .5f * Mathf.Sin(w * 100) + .25f * Mathf.Sin(w * 200) + .12f * Mathf.Sin(w * 300) + .05f * Mathf.Sin(w * 1200);
+                data[i] = (v + ((float)random.NextDouble() * 2 - 1) * .03f) * .3f;
+            }
+
+            return Make("Zumbido (sintetizado)", data);
+        }
+
+        // One tick of a wall clock: a short dry click.
+        public static AudioClip Tick()
+        {
+            int total = Mathf.CeilToInt(.03f * Rate);
+            var data = new float[total];
+            var random = new System.Random(3);
+            for (int i = 0; i < total; i++)
+            {
+                float t = (float)i / Rate;
+                float click = .6f * Mathf.Sin(2 * Mathf.PI * 3200 * t) + .4f * ((float)random.NextDouble() * 2 - 1);
+                data[i] = click * Mathf.Exp(-t * 300) * .5f;
+            }
+
+            return Make("Tic-tac (sintetizado)", data);
+        }
+
+        // The alarm panel's "wrong code" buzz.
+        public static AudioClip Buzz(float seconds = .3f)
+        {
+            int total = Mathf.CeilToInt(seconds * Rate);
+            var data = new float[total];
+            for (int i = 0; i < total; i++)
+            {
+                float t = (float)i / Rate;
+                float edge = Mathf.Clamp01(t / .01f) * Mathf.Clamp01((seconds - t) / .03f);
+                // A softened square wave: harsh enough to read as "error".
+                data[i] = Mathf.Clamp(Mathf.Sin(2 * Mathf.PI * 160 * t) * 3f, -1f, 1f) * .16f * edge;
+            }
+
+            return Make("Error (sintetizado)", data);
+        }
+
         static AudioClip Make(string name, float[] data)
         {
             var clip = AudioClip.Create(name, data.Length, 1, Rate, false);

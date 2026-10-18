@@ -198,10 +198,22 @@ namespace Turno0313
         {
             if (!IsReportable(target))
                 return ReportResult.Nothing;
+            return Judge(target.GetComponentInParent<Anomaly>(), target.gameObject, source);
+        }
+
+        // For anomalies with no collider to aim at, such as the ones only the security cameras show.
+        public ReportResult ReportAnomaly(Anomaly anomaly, ReportSource source)
+        {
+            if (!anomaly || !(anomaly.IsActive || anomaly.ReportableWhenNormal))
+                return ReportResult.Nothing;
+            return Judge(anomaly, anomaly.gameObject, source);
+        }
+
+        ReportResult Judge(Anomaly anomaly, GameObject target, ReportSource source)
+        {
             if (Time.time - lastReport < reportCooldown)
                 return ReportResult.Cooldown;
             lastReport = Time.time;
-            var anomaly = target.GetComponentInParent<Anomaly>();
             if (anomaly && anomaly.IsManifested)
             {
                 anomaly.Resolve();
@@ -211,7 +223,7 @@ namespace Turno0313
             }
 
             WrongReports++;
-            WrongReport?.Invoke(target.gameObject, source);
+            WrongReport?.Invoke(target, source);
             return ReportResult.Wrong;
         }
 

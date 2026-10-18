@@ -45,6 +45,19 @@ namespace Turno0313
                 Instance = null;
         }
 
+        // A different code (after falling back from Act 2), already spread over the anomalies.
+        public void NewCode()
+        {
+            if (!IsValid(fixedCode))
+            {
+                var old = Code;
+                for (int i = 0; i < 20 && Code == old; i++)
+                    Code = Generate();
+            }
+
+            Shuffle();
+        }
+
         // Gives every carrier one position of the code, in a new random order.
         public void Shuffle()
         {

@@ -63,7 +63,9 @@ namespace Turno0313
                 showCode = !showCode;
             if (keyboard.f8Key.wasPressedThisFrame && NightCycle.Instance)
                 NightCycle.Instance.Restart();
-            if (keyboard.f9Key.wasPressedThisFrame && FalseEnding.Instance && !(NightCycle.Instance && NightCycle.Instance.Restarting))
+            // In the dream only; in reality F9 belongs to the final (Act2HUD).
+            bool dream = !AnomalyManager.Instance || AnomalyManager.Instance.Act == GameAct.Dream;
+            if (dream && keyboard.f9Key.wasPressedThisFrame && FalseEnding.Instance && !(NightCycle.Instance && NightCycle.Instance.Restarting))
             {
                 if (AlarmPanel.Instance)
                     AlarmPanel.Instance.Close();

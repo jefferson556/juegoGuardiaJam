@@ -84,6 +84,7 @@ namespace Turno0313.EditorTools
             Set(manager, "viewer", player.GetComponentInChildren<Camera>());
             Set(manager, "firstOfNight", clock);
             Act1Systems(systems);
+            Act2(level, anomalies, systems);
             var hud = systems.AddComponent<DebugHUD>();
             Set(hud, "interactor", player.GetComponent<PlayerInteractor>());
             Set(hud, "reporter", player.GetComponent<PlayerReporter>());

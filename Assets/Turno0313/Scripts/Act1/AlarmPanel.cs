@@ -68,7 +68,13 @@ namespace Turno0313
         float checkAt, feedbackUntil;
         int openedFrame;
 
-        void Awake() => Instance = this;
+        void Awake()
+        {
+            Instance = this;
+            // Until Elvis has a real panel sound.
+            if (!wrongClip)
+                wrongClip = SynthAudio.Buzz();
+        }
 
         void Start()
         {
@@ -311,6 +317,15 @@ namespace Turno0313
                 screen.text = "ERROR";
             else
                 screen.text = IsOpen ? Masked() : "- - - -";
+        }
+
+        // Waiting for a code again (back in the dream after Act 2).
+        public void ResetForDream()
+        {
+            Close();
+            IsSolved = false;
+            Feedback = PanelFeedback.None;
+            RefreshScreen();
         }
 
         void OnNightReset()

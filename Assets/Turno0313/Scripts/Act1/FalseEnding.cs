@@ -22,6 +22,8 @@ namespace Turno0313
         [SerializeField] float glitchSeconds = 1.4f;
         [Header("Texto")]
         [SerializeField] string wakeMessage = "Solo fue un sueño.";
+        [Tooltip("Al despertar otra vez (después de volver al sueño desde el Acto 2): sin créditos.")]
+        [SerializeField] string againMessage = "Desperté otra vez.";
         [Tooltip("La primera línea es el título.")]
         [TextArea(8, 20)]
         [SerializeField] string credits = "TURNO 03:13\n\nPROGRAMACIÓN\nJohn Orellana\nMiguel Navarrete\nJefferson Perez\n\nDISEÑO Y ARTE\nIvo Chiriboga\nElvis Reyes B\n\nQA Y PRODUCCIÓN\nGiovanni Bauz\n\nGracias por jugar";
@@ -33,6 +35,8 @@ namespace Turno0313
 
         public static FalseEnding Instance { get; private set; }
         public bool Running { get; private set; }
+        // The fake credits only play the first time; later wake-ups go straight to reality.
+        public bool CreditsShown { get; private set; }
         // Control is back and the act is Reality: Act 2 starts here.
         public event Action Finished;
 
@@ -140,10 +144,48 @@ namespace Turno0313
 
             if (fade)
                 fade.Alpha = 0;
-            GameMessages.Show(wakeMessage, awakeHold + .5f);
+            bool credits = !CreditsShown;
+            GameMessages.Show(credits ? wakeMessage : againMessage, awakeHold + .5f);
             yield return new WaitForSeconds(awakeHold);
 
-            // 3. The fake ending: to black, credits and music.
+            if (credits)
+            {
+                yield return FakeCredits(fade);
+                CreditsShown = true;
+                SetPhase(Phase.Static);
+            }
+            else
+            {
+                // Waking up again: no credits this time, the alarm just stops.
+                for (float t = 0; t < 1f; t += Time.deltaTime)
+                {
+                    alarm.volume = 1 - t;
+                    yield return null;
+                }
+
+                alarm.Stop();
+            }
+
+            // 5. Back to the game, in reality (a hard cut after the credits).
+            if (fade)
+                fade.Alpha = 0;
+            if (manager)
+            {
+                manager.SetAct(GameAct.Reality);
+                manager.AutoActivate = autoActivate;
+            }
+
+            if (player)
+                player.SetControl(true);
+            Running = false;
+            Finished?.Invoke();
+            yield return new WaitForSeconds(.5f);
+            SetPhase(Phase.None);
+        }
+
+        // 3 and 4: to black, credits with music... and after a few seconds they break.
+        IEnumerator FakeCredits(ScreenFade fade)
+        {
             for (float t = 0; t < creditsFadeIn; t += Time.deltaTime)
             {
                 float k = Mathf.SmoothStep(0, 1, t / creditsFadeIn);
@@ -181,23 +223,6 @@ namespace Turno0313
 
             music.Stop();
             music.pitch = 1;
-
-            // 5. Hard cut back to the game, in reality.
-            SetPhase(Phase.Static);
-            if (fade)
-                fade.Alpha = 0;
-            if (manager)
-            {
-                manager.SetAct(GameAct.Reality);
-                manager.AutoActivate = autoActivate;
-            }
-
-            if (player)
-                player.SetControl(true);
-            Running = false;
-            Finished?.Invoke();
-            yield return new WaitForSeconds(.5f);
-            SetPhase(Phase.None);
         }
 
         void SetPhase(Phase value)

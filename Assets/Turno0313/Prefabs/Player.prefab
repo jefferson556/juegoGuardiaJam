@@ -448,7 +448,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 807785376394132472}
-  m_Layer: 0
+  m_Layer: 11
   m_Name: Mano_Linterna
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -479,6 +479,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 807785376394132472}
     m_Modifications:
+    - target: {fileID: -8897750643308392608, guid: 3ddb785bea135fa97068ea7386f2f786, type: 3}
+      propertyPath: m_Layer
+      value: 11
+      objectReference: {fileID: 0}
     - target: {fileID: -4216859302048453862, guid: 3ddb785bea135fa97068ea7386f2f786, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -519,13 +523,41 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -2076340395091652619, guid: 3ddb785bea135fa97068ea7386f2f786, type: 3}
+      propertyPath: m_Layer
+      value: 11
+      objectReference: {fileID: 0}
+    - target: {fileID: -1105436982919801004, guid: 3ddb785bea135fa97068ea7386f2f786, type: 3}
+      propertyPath: m_Layer
+      value: 11
+      objectReference: {fileID: 0}
     - target: {fileID: -927199367670048503, guid: 3ddb785bea135fa97068ea7386f2f786, type: 3}
       propertyPath: m_Name
       value: Visual
       objectReference: {fileID: 0}
+    - target: {fileID: -927199367670048503, guid: 3ddb785bea135fa97068ea7386f2f786, type: 3}
+      propertyPath: m_Layer
+      value: 11
+      objectReference: {fileID: 0}
+    - target: {fileID: 629343809871251322, guid: 3ddb785bea135fa97068ea7386f2f786, type: 3}
+      propertyPath: m_Layer
+      value: 11
+      objectReference: {fileID: 0}
+    - target: {fileID: 725792682623091971, guid: 3ddb785bea135fa97068ea7386f2f786, type: 3}
+      propertyPath: m_Layer
+      value: 11
+      objectReference: {fileID: 0}
+    - target: {fileID: 1176113090029640156, guid: 3ddb785bea135fa97068ea7386f2f786, type: 3}
+      propertyPath: m_Layer
+      value: 11
+      objectReference: {fileID: 0}
     - target: {fileID: 3422605776377156182, guid: 3ddb785bea135fa97068ea7386f2f786, type: 3}
       propertyPath: m_CastShadows
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8194809367612746195, guid: 3ddb785bea135fa97068ea7386f2f786, type: 3}
+      propertyPath: m_Layer
+      value: 11
       objectReference: {fileID: 0}
     - target: {fileID: 9186734381783459995, guid: 3ddb785bea135fa97068ea7386f2f786, type: 3}
       propertyPath: m_CastShadows

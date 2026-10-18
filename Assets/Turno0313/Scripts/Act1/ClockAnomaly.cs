@@ -15,6 +15,14 @@ namespace Turno0313
 
         int lastSecond = -1;
 
+        protected override void Awake()
+        {
+            base.Awake();
+            // Until Elvis has a real tick.
+            if (!tickClip)
+                tickClip = SynthAudio.Tick();
+        }
+
         void LateUpdate()
         {
             if (!display)
