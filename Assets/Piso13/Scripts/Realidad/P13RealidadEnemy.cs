@@ -54,6 +54,19 @@ namespace Piso13.Realidad
         public float SpeedBoostTimer = 0f;
         public float SpeedBoostMultiplier = 1.25f;
 
+        [Header("Audio del Enemigo")]
+        public AudioClip BreathingClip;
+        public AudioClip FeetClip;
+        public AudioClip DraggingClip;
+        public float MaxHearingDistance = 16f;
+        public float MaxBreathingVolume = 0.85f;
+        public float MaxFootstepVolume = 0.75f;
+        public float FootstepInterval = 0.85f;
+
+        private AudioSource breathingSource;
+        private AudioSource stepSource;
+        private bool alternateStep = false;
+
         public static Action<string, Vector3, float> OnGlobalMapEvent;
 
         // Nodos del mapa idénticos a P13Guard en Piso 13
@@ -150,6 +163,51 @@ namespace Piso13.Realidad
 
                 PlayAnimation("idle");
             }
+
+            SetupAudio();
+        }
+
+        public void SetupAudio()
+        {
+            if (BreathingClip == null)
+                BreathingClip = Resources.Load<AudioClip>("Audio/freesound_community-zombie-breathing-70682");
+            if (FeetClip == null)
+                FeetClip = Resources.Load<AudioClip>("Audio/freesound_community-feet-56316");
+            if (DraggingClip == null)
+                DraggingClip = Resources.Load<AudioClip>("Audio/freesound_community-dragging-on-floor-82114");
+
+            Transform audioParent = Root != null ? Root : transform;
+
+            if (breathingSource == null)
+            {
+                var breathGo = new GameObject("Enemy_BreathingAudio");
+                breathGo.transform.SetParent(audioParent, false);
+                breathGo.transform.localPosition = new Vector3(0, 1.6f, 0); // Nivel de cabeza / pecho
+                breathingSource = breathGo.AddComponent<AudioSource>();
+                breathingSource.playOnAwake = false;
+                breathingSource.loop = true;
+                breathingSource.spatialBlend = 1.0f; // 3D
+                breathingSource.rolloffMode = AudioRolloffMode.Logarithmic;
+                breathingSource.minDistance = 1.8f;
+                breathingSource.maxDistance = MaxHearingDistance;
+                breathingSource.clip = BreathingClip;
+                breathingSource.volume = 0f;
+            }
+
+            if (stepSource == null)
+            {
+                var stepGo = new GameObject("Enemy_StepAudio");
+                stepGo.transform.SetParent(audioParent, false);
+                stepGo.transform.localPosition = new Vector3(0, 0.2f, 0); // Nivel de pies
+                stepSource = stepGo.AddComponent<AudioSource>();
+                stepSource.playOnAwake = false;
+                stepSource.loop = false;
+                stepSource.spatialBlend = 1.0f; // 3D
+                stepSource.rolloffMode = AudioRolloffMode.Logarithmic;
+                stepSource.minDistance = 1.5f;
+                stepSource.maxDistance = MaxHearingDistance + 2f;
+                stepSource.volume = MaxFootstepVolume;
+            }
         }
 
         public void ApplySpawnPosition()
@@ -173,6 +231,17 @@ namespace Piso13.Realidad
             memory = null;
             SlowTimer = 0f;
             SpeedBoostTimer = 0f;
+            stepDistance = 0f;
+            alternateStep = false;
+            if (breathingSource != null)
+            {
+                breathingSource.volume = 0f;
+                breathingSource.Stop();
+            }
+            if (stepSource != null)
+            {
+                stepSource.Stop();
+            }
             if (navigator != null) navigator.ClearPath();
             Publish();
         }
@@ -344,6 +413,7 @@ namespace Piso13.Realidad
         public void Tick(float dt)
         {
             clock += dt;
+            UpdateAudio(dt);
 
             // Inicialización tardía de percepción si no existía
             if (perception == null && Game != null && navigation != null)
@@ -592,7 +662,11 @@ namespace Piso13.Realidad
                 else
                 {
                     destination = -1;
-                    if (navigator != null) navigator.SetDestination(target, Position);
+                    if (navigator != null)
+                    {
+                        bool force = !navigator.HasPath;
+                        navigator.SetDestination(target, Position, force);
+                    }
                 }
             }
             else if (State == RealidadEnemyState.Investigating)
@@ -681,13 +755,11 @@ namespace Piso13.Realidad
                 Yaw = newYaw;
 
                 stepDistance += travelled;
-                if (stepDistance > 0.75f)
+                float currentInterval = State == RealidadEnemyState.Hunting ? 0.65f : FootstepInterval;
+                if (stepDistance > currentInterval)
                 {
                     stepDistance = 0f;
-                    if (Game != null && Game.Audio != null)
-                    {
-                        Game.Audio.Spatial("guard_step", Position, 0.5f);
-                    }
+                    PlayFootstepSound();
                 }
 
                 string animName = State == RealidadEnemyState.Hunting ? "run" : State == RealidadEnemyState.Investigating ? "walk" : "patrol";
@@ -696,6 +768,7 @@ namespace Piso13.Realidad
             else
             {
                 Speed = 0f;
+                stepDistance = 0f;
                 PlayAnimation("idle");
             }
 
@@ -724,10 +797,108 @@ namespace Piso13.Realidad
 
         public void Pause(bool p)
         {
-            if (Anim == null) return;
-            foreach (AnimationState s in Anim)
+            if (Anim != null)
             {
-                s.speed = p ? 0f : 1f;
+                foreach (AnimationState s in Anim)
+                {
+                    s.speed = p ? 0f : 1f;
+                }
+            }
+            if (breathingSource != null)
+            {
+                if (p && breathingSource.isPlaying) breathingSource.Pause();
+                else if (!p && breathingSource.volume > 0.01f) breathingSource.UnPause();
+            }
+            if (stepSource != null && p && stepSource.isPlaying)
+            {
+                stepSource.Pause();
+            }
+        }
+
+        void UpdateAudio(float dt)
+        {
+            if (breathingSource == null) SetupAudio();
+            if (breathingSource == null || Game == null) return;
+
+            // Si el juego está pausado, en captura o la advertencia está activa, pausar audio
+            if (Game.ShowModal || Game.Phase != P13RealidadGame.GamePhase.Playing)
+            {
+                if (breathingSource.isPlaying) breathingSource.Pause();
+                if (stepSource != null && stepSource.isPlaying) stepSource.Pause();
+                return;
+            }
+            else
+            {
+                if (!breathingSource.isPlaying && State != RealidadEnemyState.Dormant && BreathingClip != null)
+                {
+                    breathingSource.UnPause();
+                    if (!breathingSource.isPlaying) breathingSource.Play();
+                }
+            }
+
+            // En reposo inicial (Dormant), la respiración está silenciada
+            if (State == RealidadEnemyState.Dormant)
+            {
+                breathingSource.volume = 0f;
+                return;
+            }
+
+            // Distancia al jugador
+            float dist = Vector3.Distance(Position, Game.PlayerPosition);
+
+            // Factor de cercanía (1 en contacto directo, 0 a MaxHearingDistance)
+            float proximity = Mathf.Clamp01(1f - (dist / MaxHearingDistance));
+
+            // Curva exponencial cuadrática para que la cercanía (< 5m) se sienta muy intensa
+            float volFactor = Mathf.Pow(proximity, 1.35f);
+
+            // En persecución (Hunting) la respiración es más intensa y agitada
+            bool hunting = State == RealidadEnemyState.Hunting;
+            float targetVolume = volFactor * MaxBreathingVolume * (hunting ? 1.0f : 0.75f);
+            float targetPitch = hunting ? 1.12f : 0.95f;
+
+            breathingSource.volume = Mathf.MoveTowards(breathingSource.volume, targetVolume, dt * 1.5f);
+            breathingSource.pitch = Mathf.MoveTowards(breathingSource.pitch, targetPitch, dt * 0.8f);
+
+            if (breathingSource.volume > 0.01f && !breathingSource.isPlaying && BreathingClip != null)
+            {
+                breathingSource.Play();
+            }
+        }
+
+        void PlayFootstepSound()
+        {
+            if (stepSource == null) return;
+            if (Game == null || Game.ShowModal || Game.Phase != P13RealidadGame.GamePhase.Playing) return;
+
+            float dist = Vector3.Distance(Position, Game.PlayerPosition);
+            if (dist > MaxHearingDistance + 2f) return;
+
+            // Factor de volumen por cercanía
+            float proximity = Mathf.Clamp01(1f - (dist / (MaxHearingDistance + 2f)));
+            float vol = Mathf.Pow(proximity, 1.25f) * MaxFootstepVolume * (State == RealidadEnemyState.Hunting ? 1.0f : 0.85f);
+
+            // Alternar entre paso normal (FeetClip) y arrastre (DraggingClip)
+            alternateStep = !alternateStep;
+            AudioClip clipToPlay = alternateStep ? FeetClip : DraggingClip;
+            if (clipToPlay == null) clipToPlay = FeetClip ?? DraggingClip;
+
+            if (clipToPlay != null)
+            {
+                stepSource.pitch = UnityEngine.Random.Range(0.92f, 1.08f);
+                stepSource.PlayOneShot(clipToPlay, vol);
+            }
+        }
+
+        void OnDestroy()
+        {
+            if (breathingSource != null)
+            {
+                breathingSource.Stop();
+            }
+            if (stepSource != null)
+            {
+                stepSource.Stop();
             }
         }
 

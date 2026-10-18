@@ -1678,7 +1678,10 @@ MonoBehaviour:
   CoffeeCup: {fileID: 0}
   PersonaAnomaly: {fileID: 0}
   HumanMaskAnomaly: {fileID: 0}
+  CCTVStation: {fileID: 0}
+  HasOpenedCCTVBefore: 0
   CoffeeAnomalyReported: 0
+  ClockPentagramReported: 0
   ClockAnomalyPosition: {x: 2.66, y: 2.05, z: -1.6}
   ClockAnomalyRotation: {x: 0, y: -90, z: 0}
   ClockAnomalyScale: {x: 1, y: 1, z: 1}
@@ -2302,7 +2305,7 @@ AudioSource:
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}
-  m_Resource: {fileID: 8300000, guid: 5a7d8159e08b4a2c950e44166c3da606, type: 3}
+  m_Resource: {fileID: 8300000, guid: 8e770754f898944c979e357b4145b742, type: 3}
   m_PlayOnAwake: 0
   m_Volume: 1
   m_Pitch: 1

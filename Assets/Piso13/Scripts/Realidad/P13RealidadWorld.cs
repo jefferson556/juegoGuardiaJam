@@ -207,7 +207,7 @@ namespace Piso13.Realidad
     {
         readonly P13RealidadWorld world;
         const float spacing = .2f;
-        public const float Radius = .45f;
+        public const float Radius = .36f;
         bool floor12;
         int width, height, revision = -1;
         bool closed;
@@ -235,13 +235,13 @@ namespace Piso13.Realidad
             height = f ? 158 : 77;
             grid = new bool[width * height];
             for (int i = 0; i < grid.Length; i++)
-                grid[i] = world.CanStand(Point(i), Radius + .04f) && world.Clear(Point(i), Point(i), Radius + .03f, true);
+                grid[i] = world.CanStand(Point(i), Radius + .02f) && world.Clear(Point(i), Point(i), Radius + .01f, true);
         }
 
         public Vector3 Safe(Vector3 p)
         {
             Select(p);
-            if (world.CanStand(p, Radius + .04f) && world.Clear(p, p, Radius + .03f, true))
+            if (world.CanStand(p, Radius + .02f) && world.Clear(p, p, 0.05f, true))
                 return p;
             float best = float.MaxValue;
             Vector3 result = p;
@@ -267,7 +267,7 @@ namespace Piso13.Realidad
                 if (grid[i])
                 {
                     float d = (p - Point(i)).sqrMagnitude;
-                    if (d < best && world.Clear(p, Point(i), Radius + .01f, true))
+                    if (d < best && world.Clear(p, Point(i), 0.05f, true))
                     {
                         best = d;
                         result = i;
@@ -300,7 +300,7 @@ namespace Piso13.Realidad
                 return empty;
             goal = Safe(goal);
             start = Safe(start);
-            if (world.Clear(start, goal, Radius + .02f, true))
+            if (world.Clear(start, goal, 0.05f, true))
                 return new List<Vector3> { goal };
             int from = Nearest(start), to = Nearest(goal);
             if (from < 0 || to < 0)
@@ -333,7 +333,7 @@ namespace Piso13.Realidad
                             continue;
                         if (dx != 0 && dz != 0 && (!grid[z * width + nx] || !grid[nz * width + x]))
                             continue;
-                        if (!world.Clear(Point(current), Point(next), Radius + .01f, true))
+                        if (!world.Clear(Point(current), Point(next), 0.05f, true))
                             continue;
                         float c = costs[current] + spacing * (dx == 0 || dz == 0 ? 1 : 1.414214f);
                         if (c < costs[next])
@@ -366,7 +366,7 @@ namespace Piso13.Realidad
                 int last = i;
                 for (int j = i; j < path.Count; j++)
                 {
-                    if (world.Clear(anchor, path[j], Radius + .03f, true))
+                    if (world.Clear(anchor, path[j], 0.08f, true))
                         last = j;
                     else
                         break;
