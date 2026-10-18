@@ -137,7 +137,8 @@ namespace Piso13.Realidad
                     alignment = TextAnchor.MiddleCenter
                 };
                 promptStyle.normal.textColor = ink;
-                GUI.Label(promptRect, Game.CurrentInteractionPrompt, promptStyle);
+                // [E] / [R] se muestran como la tecla o el botón del mando en uso (InputPrompts)
+                Turno0313.InputPrompts.Label(promptRect, Turno0313.InputPrompts.FromKeys(Game.CurrentInteractionPrompt), promptStyle);
             }
 
             // 1. Panel Superior Izquierdo: Reloj y Estado
@@ -195,8 +196,8 @@ namespace Piso13.Realidad
 
             GUI.Label(new Rect(37, 614, 850, 30), objectiveText, body);
 
-            // Controles (E puerta, R reportar, V CCTV)
-            GUI.Label(new Rect(37, 652, 850, 30), "E: puerta  ·  R: reportar anomalía  ·  V: CCTV  ·  F: linterna  ·  Esc: pausa", small);
+            // Controles: teclas o botones del mando en uso (InputPrompts)
+            Turno0313.InputPrompts.Label(new Rect(37, 652, 850, 30), "{Interact} puerta  ·  {Report} reportar anomalía  ·  {Cameras} CCTV  ·  {Flashlight} linterna  ·  {Crouch} agacharse  ·  {Pause} pausa", small);
 
             // Mensajes temporales si los hay (Toast centrado y destacado)
             if (!string.IsNullOrEmpty(Game.NotificationMessage))
@@ -211,7 +212,7 @@ namespace Piso13.Realidad
 
                 Rect notifRect = new Rect(Width / 2 - 330, 108, 660, 42);
                 Panel(notifRect, 0.94f, bannerTint);
-                GUI.Label(new Rect(notifRect.x + 10, notifRect.y + 7, notifRect.width - 20, 28), Game.NotificationMessage, modalBody);
+                Turno0313.InputPrompts.Label(new Rect(notifRect.x + 10, notifRect.y + 7, notifRect.width - 20, 28), Turno0313.InputPrompts.FromKeys(Game.NotificationMessage), modalBody);
             }
         }
 
@@ -243,7 +244,8 @@ namespace Piso13.Realidad
             }
             GUI.backgroundColor = oldBg;
 
-            GUI.Label(new Rect(Width / 2 - 200, dialogRect.y + 280, 400, 25), "Pulsa CONTINUAR, E o ESPACIO para seguir", small);
+            Turno0313.InputPrompts.Label(new Rect(Width / 2 - 200, dialogRect.y + 280, 400, 25),
+                Turno0313.InputPrompts.Pick("Pulsa CONTINUAR, {Interact} o [Espacio] para seguir", "Pulsa {Confirm} para seguir"), small);
         }
 
         void CamerasView()
@@ -288,14 +290,14 @@ namespace Piso13.Realidad
 
             // Indicador inferior
             Panel(new Rect(30, 590, 800, 36), 0.75f);
-            GUI.Label(new Rect(45, 596, 770, 26), "← / →: cambiar cámara  ·  Ratón: orientar  ·  V / ESC: salir de CCTV", small);
+            Turno0313.InputPrompts.Label(new Rect(45, 596, 770, 26), "{Shoulders} cambiar cámara  ·  {Look} orientar  ·  {Cameras} o {Back} salir de CCTV", small);
 
             // Prompt de reporte de anomalía en CCTV (ej. CAM 06 con la Persona Elegante)
             if (!string.IsNullOrEmpty(Game.CurrentInteractionPrompt))
             {
                 var promptRect = new Rect(Width / 2 - 275, 530, 550, 42);
                 Panel(promptRect, 0.92f, new Color(0.40f, 0.08f, 0.08f, 0.92f));
-                GUI.Label(promptRect, Game.CurrentInteractionPrompt, body);
+                Turno0313.InputPrompts.Label(promptRect, Turno0313.InputPrompts.FromKeys(Game.CurrentInteractionPrompt), body);
             }
         }
     }

@@ -770,6 +770,12 @@ namespace Piso13.Realidad
             {
                 close = kb.spaceKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame || kb.eKey.wasPressedThisFrame || kb.escapeKey.wasPressedThisFrame;
             }
+            // Mando: A / ✕, B / ○ o Start / Options
+            var pad = Gamepad.current;
+            if (pad != null)
+            {
+                close |= pad.buttonSouth.wasPressedThisFrame || pad.buttonEast.wasPressedThisFrame || pad.startButton.wasPressedThisFrame;
+            }
 #else
             close = Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.Escape);
 #endif
@@ -817,6 +823,7 @@ namespace Piso13.Realidad
             float h = 0f;
             float v = 0f;
             Vector2 mouseDelta = Vector2.zero;
+            int camStep = 0; // CCTV: una cámara por pulsación
 
 #if ENABLE_INPUT_SYSTEM
             var kb = Keyboard.current;
@@ -843,6 +850,41 @@ namespace Piso13.Realidad
                 mouseDelta = mouse.delta.ReadValue() * 0.12f;
                 clickToLock = mouse.leftButton.wasPressedThisFrame;
             }
+
+            if (kb != null)
+            {
+                if (kb.dKey.wasPressedThisFrame || kb.rightArrowKey.wasPressedThisFrame) camStep++;
+                if (kb.aKey.wasPressedThisFrame || kb.leftArrowKey.wasPressedThisFrame) camStep--;
+            }
+
+            // Mando (Xbox / PlayStation), los mismos botones que en el resto del juego:
+            // stick izq. moverse, stick der. mirar, L3 correr, A/✕ interactuar, Y/△ reportar, RB/R1 linterna,
+            // X/□ cámaras, R3 agacharse, B/○ salir de las cámaras, LB/RB o cruceta cambiar de cámara.
+            var pad = Gamepad.current;
+            if (pad != null)
+            {
+                var move = pad.leftStick.ReadValue();
+                h = Mathf.Clamp(h + move.x, -1f, 1f);
+                v = Mathf.Clamp(v + move.y, -1f, 1f);
+                var look = pad.rightStick.ReadValue();
+                // Mismas unidades que el ratón: unos 150°/s en horizontal y 110°/s en vertical
+                mouseDelta += new Vector2(look.x * 75f, look.y * 55f) * dt;
+                sprint |= pad.leftStickButton.isPressed;
+                toggleInteract |= pad.buttonSouth.wasPressedThisFrame;
+                toggleReport |= pad.buttonNorth.wasPressedThisFrame;
+                toggleCCTV |= pad.buttonWest.wasPressedThisFrame;
+                toggleCrouch |= pad.rightStickButton.wasPressedThisFrame;
+                toggleEsc |= CCTV && pad.buttonEast.wasPressedThisFrame;
+                clickToLock |= pad.buttonSouth.wasPressedThisFrame;
+                if (CCTV)
+                {
+                    // RB / R1 cambia de cámara aquí; fuera de las cámaras es la linterna
+                    if (pad.rightShoulder.wasPressedThisFrame || pad.dpad.right.wasPressedThisFrame) camStep++;
+                    if (pad.leftShoulder.wasPressedThisFrame || pad.dpad.left.wasPressedThisFrame) camStep--;
+                }
+                else
+                    toggleFlash |= pad.rightShoulder.wasPressedThisFrame;
+            }
 #else
             toggleEsc = Input.GetKeyDown(KeyCode.Escape);
             toggleFlash = Input.GetKeyDown(KeyCode.F);
@@ -855,6 +897,8 @@ namespace Piso13.Realidad
             v = Input.GetAxisRaw("Vertical");
             mouseDelta = new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y"));
             clickToLock = Input.GetMouseButtonDown(0);
+            if (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow)) camStep++;
+            if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow)) camStep--;
 #endif
 
             if (clickToLock && Cursor.lockState != CursorLockMode.Locked && !CCTV && !ShowModal)
@@ -880,10 +924,9 @@ namespace Piso13.Realidad
 
             if (CCTV)
             {
-                if (Mathf.Abs(h) > 0.1f)
+                if (camStep != 0)
                 {
-                    int step = h > 0 ? 1 : -1;
-                    SelectCamera((CameraIndex + step + 9) % 9);
+                    SelectCamera((CameraIndex + camStep + 9) % 9);
                 }
                 cctvLook += mouseDelta * 1.5f;
                 cctvLook.x = Mathf.Clamp(cctvLook.x, -35f, 35f);

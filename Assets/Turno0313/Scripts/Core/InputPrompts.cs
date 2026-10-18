@@ -48,7 +48,25 @@ namespace Turno0313
             ["Erase"] = ("Retroceso", "X", null, Icon.Square),
             ["DPad"] = ("Flechas", "Cruceta", "Cruceta", Icon.None),
             ["Shoulders"] = ("← →", "LB / RB", "L1 / R1", Icon.None),
+            // Piso13 Realidad (Jefferson's scene).
+            ["Crouch"] = ("C", "R3", "R3", Icon.None),
+            ["Cameras"] = ("V", "X", null, Icon.Square),
         };
+
+        // Older texts write the key itself ("[E]", "[R]"): turns those into tokens so they follow the device too.
+        static readonly (string key, string token)[] KeyTokens =
+        {
+            ("[E]", "{Interact}"), ("[R]", "{Report}"), ("[F]", "{Flashlight}"), ("[V]", "{Cameras}"), ("[C]", "{Crouch}")
+        };
+
+        public static string FromKeys(string text)
+        {
+            if (string.IsNullOrEmpty(text) || text.IndexOf('[') < 0)
+                return text;
+            foreach (var (key, token) in KeyTokens)
+                text = text.Replace(key, token);
+            return text;
+        }
 
         // ---- Which device is in use ----
 

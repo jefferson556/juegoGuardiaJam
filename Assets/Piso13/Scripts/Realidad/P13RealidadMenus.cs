@@ -19,7 +19,7 @@ namespace Piso13.Realidad
         public P13RealidadEnding Ending { get; private set; }
 
         MenuKit kit;
-        bool wasLost;
+        bool wasLost, resumeNextFrame;
 
         bool Lost => Game != null && Game.Phase == P13RealidadGame.GamePhase.Lost;
 
@@ -51,6 +51,14 @@ namespace Piso13.Realidad
             kit.Tick();
             if (Game == null || (Ending != null && Ending.Running))
                 return;
+
+            // El juego vuelve un frame después de cerrar la pausa, para que la A / Enter que eligió "Continuar"
+            // no abra también una puerta.
+            if (resumeNextFrame)
+            {
+                resumeNextFrame = false;
+                Game.enabled = true;
+            }
 
             if (Lost != wasLost)
             {
@@ -85,8 +93,11 @@ namespace Piso13.Realidad
             kit.Reset();
             Time.timeScale = paused ? 0 : 1;
             AudioListener.pause = paused;
-            // Sin Update el juego no lee el ratón ni el teclado mientras está en pausa.
-            Game.enabled = !paused;
+            // Sin Update el juego no lee el ratón, el teclado ni el mando mientras está en pausa.
+            if (paused)
+                Game.enabled = false;
+            else
+                resumeNextFrame = true;
             Game.CursorLock(!paused);
         }
 
