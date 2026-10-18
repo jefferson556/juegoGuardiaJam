@@ -55,7 +55,7 @@ namespace Piso13.Realidad
 
             modalBody = new GUIStyle(body)
             {
-                fontSize = 20,
+                fontSize = 18,
                 wordWrap = true,
                 alignment = TextAnchor.MiddleCenter
             };
@@ -142,14 +142,16 @@ namespace Piso13.Realidad
             }
 
             // 1. Panel Superior Izquierdo: Reloj y Estado
-            Panel(new Rect(22, 18, 300, 75), 0.78f);
+            var ending = Game.Menus != null ? Game.Menus.Ending : null;
+            bool showAnomalies = ending != null;
+            Panel(new Rect(22, 18, 300, showAnomalies ? 75 : 55), 0.78f);
             int hour = (Game.Minute / 60) % 24;
             int minute = Game.Minute % 60;
             GUI.Label(new Rect(37, 26, 280, 28), string.Format("{0:00}:{1:00} AM  ·  PISO 12", hour, minute), heading);
-            // Anomalías reales reportadas (P13RealidadEnding): al llegar al total salen los créditos
-            var ending = Game.Menus != null ? Game.Menus.Ending : null;
-            string anomalies = ending != null ? "  ·  Anomalías " + ending.Found + "/" + ending.Total : "";
-            GUI.Label(new Rect(37, 57, 280, 26), "Energía " + Mathf.CeilToInt(Game.Energy) + "%" + anomalies, small);
+            if (showAnomalies)
+            {
+                GUI.Label(new Rect(37, 57, 280, 26), "Anomalías " + ending.Found + "/" + ending.Total, small);
+            }
 
             // 2. Barra de Realidad (Aparece únicamente tras cerrar la ventana emergente de alerta)
             if (Game.ModalDismissed)
@@ -197,7 +199,10 @@ namespace Piso13.Realidad
             GUI.Label(new Rect(37, 614, 850, 30), objectiveText, body);
 
             // Controles: teclas o botones del mando en uso (InputPrompts)
-            Turno0313.InputPrompts.Label(new Rect(37, 652, 850, 30), "{Interact} puerta  ·  {Report} reportar anomalía  ·  {Cameras} CCTV  ·  {Flashlight} linterna  ·  {Crouch} agacharse  ·  {Pause} pausa", small);
+            string controlsText = Game.IsPlayerAtCCTVStation()
+                ? "{Interact} puerta  ·  {Report} reportar anomalía  ·  {Cameras} CCTV  ·  {Flashlight} linterna  ·  {Crouch} agacharse  ·  {Pause} pausa"
+                : "{Interact} puerta  ·  {Report} reportar anomalía  ·  {Flashlight} linterna  ·  {Crouch} agacharse  ·  {Pause} pausa";
+            Turno0313.InputPrompts.Label(new Rect(37, 652, 850, 30), controlsText, small);
 
             // Mensajes temporales si los hay (Toast centrado y destacado)
             if (!string.IsNullOrEmpty(Game.NotificationMessage))
@@ -222,29 +227,32 @@ namespace Piso13.Realidad
             Panel(new Rect(0, 0, Width, Height), 0.78f);
 
             // Cuadro de diálogo central
-            Rect dialogRect = new Rect(200, 180, 752, 320);
+            Rect dialogRect = new Rect(176, 135, 800, 440);
             Panel(dialogRect, 0.97f, new Color(0.03f, 0.05f, 0.06f, 0.98f));
 
             // Borde superior decorativo rojo
             Panel(new Rect(dialogRect.x, dialogRect.y, dialogRect.width, 4), 1f, warningRed);
 
             // Título
-            GUI.Label(new Rect(dialogRect.x + 20, dialogRect.y + 28, dialogRect.width - 40, 45), "ADVERTENCIA", warningTitle);
+            GUI.Label(new Rect(dialogRect.x + 20, dialogRect.y + 24, dialogRect.width - 40, 40), "ADVERTENCIA", warningTitle);
 
             // Mensaje requerido
-            string msg = "Algo no encaja en este lugar... La anomalía te está cazando. Si no encuentras lo que está mal no saldrás nunca más de aquí.";
-            GUI.Label(new Rect(dialogRect.x + 40, dialogRect.y + 90, dialogRect.width - 80, 110), msg, modalBody);
+            string msg = "Algo no encaja en este piso...\n" +
+                         "Recorre las habitaciones, observa cada detalle y reporta cualquier objeto, cambio o presencia que te parezca sospechosa.\n\n" +
+                         "Pero ten cuidado... no todo lo extraño es una anomalía.\n" +
+                         "Encuentra lo que está fuera de lugar antes de que eso te encuentre a ti.";
+            GUI.Label(new Rect(dialogRect.x + 40, dialogRect.y + 75, dialogRect.width - 80, 240), msg, modalBody);
 
             // Botón interactivo de cierre
             var oldBg = GUI.backgroundColor;
             GUI.backgroundColor = new Color(0.25f, 0.45f, 0.42f);
-            if (GUI.Button(new Rect(Width / 2 - 130, dialogRect.y + 225, 260, 48), "CONTINUAR", button))
+            if (GUI.Button(new Rect(Width / 2 - 130, dialogRect.y + 330, 260, 48), "CONTINUAR", button))
             {
                 Game.DismissModal();
             }
             GUI.backgroundColor = oldBg;
 
-            Turno0313.InputPrompts.Label(new Rect(Width / 2 - 200, dialogRect.y + 280, 400, 25),
+            Turno0313.InputPrompts.Label(new Rect(Width / 2 - 250, dialogRect.y + 390, 500, 25),
                 Turno0313.InputPrompts.Pick("Pulsa CONTINUAR, {Interact} o [Espacio] para seguir", "Pulsa {Confirm} para seguir"), small);
         }
 

@@ -37,23 +37,24 @@ namespace Piso13.Realidad
         public P13RealidadGame Game;
 
         [Header("Configuración de Spawn")]
-        [Tooltip("Tiempo en segundos que espera tras desaparecer la advertencia para hacer spawn.")]
-        public float DelayAfterWarning = 10f;
-
         [Tooltip("Tiempo de enfriamiento en segundos tras desvanecerse por luz antes de poder reaparecer.")]
         public float RespawnCooldown = 15f;
 
         [Tooltip("Si es verdadero, la máscara mira siempre hacia el jugador. Si es falso, usa spawnEulerAngles fijo.")]
         public bool FacePlayer = true;
 
+        [Header("Salas Permitidas de Spawn (Exclusivo: Servidores, Ascensor, Archivo, Pasillo)")]
+        [Tooltip("Salas donde la máscara tiene permitido hacer spawn: 3=Ascensor, 4=Pasillo, 5=Archivo, 6=Servidores.")]
+        public List<int> AllowedSpawnRooms = new List<int> { 3, 4, 5, 6 };
+
         [Header("Puntos de Spawn Fijos por Habitación (CAM 01 a CAM 09)")]
         public List<RoomMaskSpawnPoint> RoomSpawnPoints = new List<RoomMaskSpawnPoint>();
 
         [Header("Spawn Detrás del Jugador (Salas Especificadas)")]
-        [Tooltip("Salas donde la máscara spawnea detrás del jugador: 1=Oficina, 4=Pasillo, 5=Archivo, 6=Servidores, 9=Almacén.")]
-        public List<int> SpawnBehindRooms = new List<int> { 1, 4, 5, 6, 9 };
+        [Tooltip("Salas donde la máscara spawnea detrás del jugador: 3=Ascensor, 4=Pasillo, 5=Archivo, 6=Servidores.")]
+        public List<int> SpawnBehindRooms = new List<int> { 3, 4, 5, 6 };
 
-        [Tooltip("Distancia detrás del jugador al hacer spawn en estas salas (en metros). Reducido 25% (de 3.3m a 2.475m).")]
+        [Tooltip("Distancia detrás del jugador al hacer spawn en estas salas (en metros).")]
         public float SpawnBehindDistance = 1.95f;
 
         [Header("Distancia y Ángulo")]
@@ -61,6 +62,7 @@ namespace Piso13.Realidad
         public float FlashlightDetectionAngle = 35f;
 
         [Header("Estado")]
+        public bool ClockReported = false;
         public bool HasSpawned = false;
         public bool IsReported = false;
         public int CurrentSpawnRoomId = -1;
@@ -74,8 +76,6 @@ namespace Piso13.Realidad
         Vector3 basePosition;
         Quaternion baseRotation;
         float vanishCooldownTimer = 0f;
-        bool warningDismissed = false;
-        float timerAfterWarning = 10f;
         int lastPlayerRoomId = -1;
         float roomChangeCooldownTimer = 0f;
 
@@ -88,12 +88,17 @@ namespace Piso13.Realidad
             cachedColliders = GetComponentsInChildren<Collider>(true);
             HasSpawned = false;
             IsReported = false;
-            warningDismissed = false;
-            timerAfterWarning = DelayAfterWarning;
+            ClockReported = false;
+            vanishCooldownTimer = 0f;
             lastPlayerRoomId = -1;
             roomChangeCooldownTimer = 0f;
             InitDefaultSpawnPoints();
             SetVisuals(false);
+        }
+
+        public bool IsRoomAllowed(int roomId)
+        {
+            return AllowedSpawnRooms != null && AllowedSpawnRooms.Contains(roomId);
         }
 
         public void SetVisuals(bool visible)
@@ -173,17 +178,33 @@ namespace Piso13.Realidad
             }
         }
 
-        public void OnAlertModalDismissed()
+        public void OnClockPentagramReported()
         {
-            if (!warningDismissed)
+            if (!ClockReported)
             {
-                warningDismissed = true;
-                timerAfterWarning = DelayAfterWarning;
+                ClockReported = true;
+                debugCountdownToSpawn = 0f;
+                Debug.Log("[P13HumanMaskAnomaly] Reloj Pentagrama reportado. Máscara Diablo Huma activada para aparecer.");
+
                 if (Game != null)
                 {
-                    lastPlayerRoomId = P13RealidadRules.Room(Game.PlayerPosition);
+                    int currentRoom = P13RealidadRules.Room(Game.PlayerPosition);
+                    lastPlayerRoomId = currentRoom;
+                    if (IsRoomAllowed(currentRoom) && vanishCooldownTimer <= 0f)
+                    {
+                        var spawnPoint = GetSpawnPointForRoom(currentRoom);
+                        if (spawnPoint != null && spawnPoint.enabled)
+                        {
+                            SpawnAtPoint(spawnPoint);
+                        }
+                    }
                 }
             }
+        }
+
+        public void OnAlertModalDismissed()
+        {
+            // Mantenido por retrocompatibilidad
         }
 
         void Update()
@@ -201,6 +222,19 @@ namespace Piso13.Realidad
                 return;
             }
 
+            // Solo comienza a actuar cuando el Reloj Pentagrama ha sido reportado
+            if (!ClockReported)
+            {
+                if (Game != null && Game.ClockPentagramReported)
+                {
+                    OnClockPentagramReported();
+                }
+                else
+                {
+                    return;
+                }
+            }
+
             int currentRoom = 0;
             if (Game != null)
             {
@@ -208,12 +242,6 @@ namespace Piso13.Realidad
                 debugPlayerCurrentRoomId = currentRoom;
                 debugPlayerCurrentRoom = GetRoomName(currentRoom);
                 debugPlayerPosition = Game.PlayerPosition;
-
-                // Si el juego cerró el modal pero no se había registrado el evento
-                if (!warningDismissed && Game.ModalDismissed)
-                {
-                    OnAlertModalDismissed();
-                }
 
                 if (lastPlayerRoomId == -1 && currentRoom > 0)
                 {
@@ -224,6 +252,11 @@ namespace Piso13.Realidad
             if (vanishCooldownTimer > 0f)
             {
                 vanishCooldownTimer -= dt;
+                debugCountdownToSpawn = Mathf.Max(0f, vanishCooldownTimer);
+            }
+            else
+            {
+                debugCountdownToSpawn = 0f;
             }
 
             if (roomChangeCooldownTimer > 0f)
@@ -232,34 +265,41 @@ namespace Piso13.Realidad
             }
 
             // Detección de cambio de habitación:
-            // Al cambiar de habitación, la máscara DEBE hacer spawn de inmediato en la nueva habitación
-            if (warningDismissed && currentRoom > 0 && currentRoom <= 9 && currentRoom != lastPlayerRoomId)
+            if (currentRoom > 0 && currentRoom <= 9 && currentRoom != lastPlayerRoomId)
             {
                 if (roomChangeCooldownTimer <= 0f)
                 {
                     lastPlayerRoomId = currentRoom;
-                    roomChangeCooldownTimer = 0.8f;
-                    RelocateToRoom(currentRoom);
-                    return;
+                    roomChangeCooldownTimer = 0.5f;
+
+                    if (IsRoomAllowed(currentRoom))
+                    {
+                        // Si entra a una sala permitida y no está en cooldown de linterna (15s):
+                        // vuelve a hacer spawn de inmediato a espaldas del jugador
+                        if (vanishCooldownTimer <= 0f)
+                        {
+                            RelocateToRoom(currentRoom);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        // Si entra a una sala no permitida: se oculta
+                        if (HasSpawned)
+                        {
+                            SetVisuals(false);
+                            HasSpawned = false;
+                        }
+                    }
                 }
             }
 
             if (!HasSpawned)
             {
-                // Solo cuenta los 10 segundos UNA VEZ que la advertencia ha desaparecido
-                if (warningDismissed)
+                // Si no ha spawneado aún, el cooldown de linterna ya terminó y la sala es permitida, spawnear
+                if (vanishCooldownTimer <= 0f && IsRoomAllowed(currentRoom))
                 {
-                    if (timerAfterWarning > 0f)
-                    {
-                        timerAfterWarning -= dt;
-                        debugCountdownToSpawn = Mathf.Max(0f, timerAfterWarning);
-                    }
-
-                    if (timerAfterWarning <= 0f && vanishCooldownTimer <= 0f)
-                    {
-                        debugCountdownToSpawn = 0f;
-                        CheckSpawnCondition();
-                    }
+                    CheckSpawnCondition();
                 }
                 return;
             }
@@ -291,15 +331,11 @@ namespace Piso13.Realidad
 
         public void RelocateToRoom(int roomId)
         {
-            if (IsReported || (Game != null && Game.ShowModal)) return;
+            if (IsReported || (Game != null && Game.ShowModal) || !ClockReported || !IsRoomAllowed(roomId)) return;
 
             var spawnPoint = GetSpawnPointForRoom(roomId);
             if (spawnPoint == null || !spawnPoint.enabled) return;
 
-            // Resetear temporizadores y estado previo para spawnear inmediatamente en la nueva sala
-            timerAfterWarning = 0f;
-            debugCountdownToSpawn = 0f;
-            vanishCooldownTimer = 0f;
             SetVisuals(false);
             HasSpawned = false;
 
@@ -308,12 +344,13 @@ namespace Piso13.Realidad
 
         void CheckSpawnCondition()
         {
-            if (Game == null || Game.Phase != P13RealidadGame.GamePhase.Playing || vanishCooldownTimer > 0f || Game.ShowModal)
+            if (Game == null || Game.Phase != P13RealidadGame.GamePhase.Playing || vanishCooldownTimer > 0f || Game.ShowModal || !ClockReported)
                 return;
 
             int currentRoom = P13RealidadRules.Room(Game.PlayerPosition);
-            var spawnPoint = GetSpawnPointForRoom(currentRoom);
+            if (!IsRoomAllowed(currentRoom)) return;
 
+            var spawnPoint = GetSpawnPointForRoom(currentRoom);
             if (spawnPoint != null && spawnPoint.enabled)
             {
                 SpawnAtPoint(spawnPoint);
@@ -406,10 +443,7 @@ namespace Piso13.Realidad
                 {
                     Game.Audio.Spatial("electric", transform.position, 0.45f);
                 }
-                string msg = spawnBehind
-                    ? "¡La Máscara Diablo Huma ha aparecido a tus espaldas!"
-                    : "¡La Máscara Diablo Huma ha aparecido en esta habitación!";
-                Game.ShowNotification(msg, 3.5f);
+                Game.ShowNotification("Una extraña máscara ha aparecido a tus espaldas", 3.5f);
             }
 
             Debug.Log($"[P13HumanMaskAnomaly] Máscara Diablo Huma spawneada en habitación {pt.roomId} ({pt.roomName}) en posición {finalPos} (Detrás del jugador: {spawnBehind})");
@@ -456,7 +490,7 @@ namespace Piso13.Realidad
                 {
                     Game.Audio.Spatial("electric", transform.position, 0.75f);
                 }
-                Game.ShowNotification("¡La Máscara Diablo Huma no tolera la luz y se desvaneció!", 3.2f);
+                Game.ShowNotification("Al diablo huma no le gusta la luz directa", 3.5f);
             }
 
             Debug.Log("[P13HumanMaskAnomaly] Máscara Diablo Huma desvanecida por linterna.");

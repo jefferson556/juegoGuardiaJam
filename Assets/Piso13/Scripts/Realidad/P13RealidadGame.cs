@@ -57,9 +57,14 @@ namespace Piso13.Realidad
         public P13CoffeeCup CoffeeCup;
         public P13PersonaEleganteAnomaly PersonaAnomaly;
         public P13HumanMaskAnomaly HumanMaskAnomaly;
+        public P13CCTVStation CCTVStation;
+
+        [Header("Estado de CCTV")]
+        public bool HasOpenedCCTVBefore = false;
 
         [Header("Progresión de Anomalías")]
         public bool CoffeeAnomalyReported = false;
+        public bool ClockPentagramReported = false;
         float coffeeDrinkTimer = 0f;
         bool coffeeTimerActive = false;
         bool coffeeHintShown = false;
@@ -162,11 +167,14 @@ namespace Piso13.Realidad
             modalTriggered = false;
             pendingAlertModal = false;
             CCTV = false;
+            CameraIndex = 0;
+            HasOpenedCCTVBefore = false;
             minuteTimer = 0f;
             realityTimer = 0f;
             captureTime = 0f;
             DoorShake = 0f;
             CoffeeAnomalyReported = false;
+            ClockPentagramReported = false;
             coffeeDrinkTimer = 0f;
             coffeeTimerActive = false;
             coffeeHintShown = false;
@@ -264,7 +272,13 @@ namespace Piso13.Realidad
             var testEnemy = GameObject.Find("TestEnemy");
             if (testEnemy != null) SafeDestroy(testEnemy);
 
-            foreach (var n in new[] { "Clock_Pentagram", "Cafetera", "Taza_Cafe", "Persona_Elegante_CAM06", "Cama_Sola", "Telefono_Vintage_Rojo", "Mascara_Diablo_Huma", "Mascara_Humana", "huma-mask" })
+            if (CCTVStation != null)
+            {
+                SafeDestroy(CCTVStation.gameObject);
+                CCTVStation = null;
+            }
+
+            foreach (var n in new[] { "Clock_Pentagram", "Cafetera", "Taza_Cafe", "Persona_Elegante_CAM06", "Cama_Sola", "Telefono_Vintage_Rojo", "Mascara_Diablo_Huma", "Mascara_Humana", "huma-mask", "camarasComputador", "P13_CCTV_Station" })
             {
                 GameObject obj;
                 while ((obj = GameObject.Find(n)) != null) SafeDestroy(obj);
@@ -591,12 +605,22 @@ namespace Piso13.Realidad
                     HumanMaskAnomaly = maskGo.GetComponent<P13HumanMaskAnomaly>();
                     if (HumanMaskAnomaly == null) HumanMaskAnomaly = maskGo.AddComponent<P13HumanMaskAnomaly>();
                     HumanMaskAnomaly.Game = this;
-                    HumanMaskAnomaly.DelayAfterWarning = 10f;
+                    HumanMaskAnomaly.RespawnCooldown = 15f;
                     HumanMaskAnomaly.SpawnBehindDistance = 1.95f;
                     HumanMaskAnomaly.MaxReportDistance = 3.0f;
                     HumanMaskAnomaly.InitDefaultSpawnPoints();
                     HumanMaskAnomaly.SetVisuals(false);
                 }
+
+                // 7. Objeto vacío camarasComputador en el Escritorio / Televisor (0.18, -0.16, 0.55)
+                var cctvGo = new GameObject("camarasComputador");
+                if (World != null && World.Root != null) cctvGo.transform.SetParent(World.Root, false);
+                cctvGo.transform.position = new Vector3(0.18f, -0.16f, 0.55f);
+                CCTVStation = cctvGo.AddComponent<P13CCTVStation>();
+                CCTVStation.Game = this;
+                CCTVStation.DeskCoordinates = new Vector3(0.18f, -0.16f, 0.55f);
+                CCTVStation.ActivationDistance = 1.15f;
+                CCTVStation.SetupCollider();
             }
             catch (Exception ex)
             {
@@ -791,8 +815,6 @@ namespace Piso13.Realidad
             ModalDismissed = true;
             CursorLock(true);
 
-            ShowNotification("¡Te diste cuenta de que algo no encaja! Ahora puedes reportar anomalías con [R].", 4.0f);
-
             // Iniciar la cuenta regresiva de 10 segundos para la Máscara Diablo Huma al desaparecer la advertencia
             if (HumanMaskAnomaly != null)
             {
@@ -885,6 +907,12 @@ namespace Piso13.Realidad
                 else
                     toggleFlash |= pad.rightShoulder.wasPressedThisFrame;
             }
+
+            try
+            {
+                if (Input.GetKeyDown(KeyCode.V)) toggleCCTV = true;
+            }
+            catch {}
 #else
             toggleEsc = Input.GetKeyDown(KeyCode.Escape);
             toggleFlash = Input.GetKeyDown(KeyCode.F);
@@ -916,10 +944,27 @@ namespace Piso13.Realidad
 
             if (toggleCCTV)
             {
-                CCTV = !CCTV;
-                cctvLook = Vector2.zero;
-                CursorLock(!CCTV);
-                return;
+                if (CCTV)
+                {
+                    CCTV = false;
+                    cctvLook = Vector2.zero;
+                    CursorLock(true);
+                    if (Audio != null) Audio.Spatial("P13_UI_Hover", PlayerPosition, 0.4f);
+                    return;
+                }
+                else if (IsPlayerAtCCTVStation())
+                {
+                    if (!HasOpenedCCTVBefore)
+                    {
+                        CameraIndex = 0;
+                        HasOpenedCCTVBefore = true;
+                    }
+                    CCTV = true;
+                    cctvLook = Vector2.zero;
+                    CursorLock(false);
+                    if (Audio != null) Audio.Spatial("P13_UI_Hover", PlayerPosition, 0.4f);
+                    return;
+                }
             }
 
             if (CCTV)
@@ -1216,6 +1261,16 @@ namespace Piso13.Realidad
             CurrentInteractionPrompt = "";
         }
 
+        public bool IsPlayerAtCCTVStation()
+        {
+            if (CCTVStation != null)
+            {
+                return CCTVStation.IsPlayerInRange(PlayerPosition);
+            }
+            Vector2 p = new Vector2(PlayerPosition.x, PlayerPosition.z);
+            return Vector2.Distance(p, new Vector2(0.18f, 0.55f)) <= 1.15f;
+        }
+
         void ReportAnomaly()
         {
             if (View == null) return;
@@ -1372,6 +1427,14 @@ namespace Piso13.Realidad
                         if (anomId == "Taza de Café")
                         {
                             CoffeeAnomalyReported = true;
+                        }
+                        if (anomId == "Reloj Pentagrama")
+                        {
+                            ClockPentagramReported = true;
+                            if (HumanMaskAnomaly != null)
+                            {
+                                HumanMaskAnomaly.OnClockPentagramReported();
+                            }
                         }
 
                         // Aumentar contador de realidad en 10%
