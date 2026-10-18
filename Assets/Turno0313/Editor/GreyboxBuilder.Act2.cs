@@ -89,7 +89,6 @@ namespace Turno0313.EditorTools
             Set(final, "casetaCamera", casetaCamera);
             Set(final, "sleepingGuard", guard);
             Set(final, "guardHead", head);
-            Set(final, "creditsMusic", Clip("P13_Menu_Ulrich"));
         }
 
         // Title and pause menus, the ambient hum (on its own object: its filter would muffle every other

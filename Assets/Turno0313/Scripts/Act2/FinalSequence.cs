@@ -1,14 +1,14 @@
 using System;
 using System.Collections;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 namespace Turno0313
 {
     // Final (Acto 2). Once the escaped anomaly is caught, the camera screen locks on CAM 06, the caseta: in the
     // chair, slumped on the desk, sits the guard himself, asleep. The camera pushes in, he lifts his head and
-    // looks into the lens. Hard cut to black, then the real credits; any key afterwards starts the game again.
+    // looks into the lens. Hard cut to black and static, one line on the black ("Despierta.") and the game goes
+    // on in Jefferson's scene (Piso13 Realidad), where the guard wakes up. The credits are at the end of that scene.
     public sealed class FinalSequence : MonoBehaviour
     {
         [SerializeField] SecurityCamera casetaCamera;
@@ -20,43 +20,36 @@ namespace Turno0313
         [SerializeField] float pushInSeconds = 5f;
         [Tooltip("Segundos que se queda mirando a la cámara antes del corte.")]
         [SerializeField] float holdSeconds = 1.6f;
+        [Tooltip("Negro con estática antes del texto.")]
         [SerializeField] float blackSeconds = 1.6f;
-        [SerializeField] float creditsSpeed = 60f;
+        [Tooltip("Segundos que el texto se queda en pantalla, sin contar los fundidos.")]
+        [SerializeField] float textSeconds = 2.2f;
         [Tooltip("Apertura final de la cámara al acercarse (grados).")]
         [SerializeField] float closeFov = 24f;
-        [Header("Créditos reales")]
-        [Tooltip("La primera línea es el título.")]
-        [TextArea(8, 20)]
-        [SerializeField] string credits = "TURNO 03:13\n\nPROGRAMACIÓN\nJohn Orellana\nMiguel Navarrete\nJefferson Perez\n\nDISEÑO Y ARTE\nIvo Chiriboga\nElvis Reyes B\n\nQA Y PRODUCCIÓN\nGiovanni Bauz\n\nHecho para la jam «Something's Off»\n\nGracias por jugar";
-        [SerializeField] AudioClip creditsMusic;
+        [Header("Paso a la escena de Jefferson")]
+        [Tooltip("La línea sobre el negro antes de despertar.")]
+        [SerializeField] string wakeText = "Despierta.";
+        [SerializeField] string nextScene = "Piso13 Realidad";
         [Tooltip("Al cortar a negro (vacío = estática sintetizada).")]
         [SerializeField] AudioClip staticClip;
 
         public static FinalSequence Instance { get; private set; }
         public bool Running { get; private set; }
+        // Right before the next scene takes over.
         public event Action Finished;
 
-        enum Phase
-        {
-            None,
-            Black,
-            Credits
-        }
-
-        Phase phase;
-        float phaseStart;
-        bool canLeave;
-        string[] lines;
-        AudioSource music, noise;
-        GUIStyle titleStyle, lineStyle, hintStyle;
+        bool black;
+        float textAlpha;
+        AudioSource noise;
+        GUIStyle textStyle;
         EscapedAnomaly escaped;
 
         void Awake()
         {
             Instance = this;
-            lines = credits.Replace("\r", "").Split('\n');
-            music = Source2D();
-            noise = Source2D();
+            noise = gameObject.AddComponent<AudioSource>();
+            noise.playOnAwake = false;
+            noise.spatialBlend = 0;
             if (sleepingGuard)
                 sleepingGuard.SetActive(false);
         }
@@ -138,7 +131,13 @@ namespace Turno0313
                 yield return null;
             }
 
-            // 3. Hard cut to black, a burst of static, then silence.
+            // 3. Hard cut to black, a burst of static, then silence. The next scene loads behind the black.
+            var load = SceneManager.LoadSceneAsync(nextScene);
+            if (load != null)
+                load.allowSceneActivation = false;
+            else
+                Debug.LogError($"[FinalSequence] La escena «{nextScene}» no está en Build Settings.");
+
             var fade = ScreenFade.Instance;
             if (fade)
             {
@@ -152,93 +151,50 @@ namespace Turno0313
                 PlayerController.Instance.SetControl(false, false);
             noise.clip = staticClip ? staticClip : SynthAudio.Static(.35f, .6f);
             noise.Play();
-            SetPhase(Phase.Black);
+            black = true;
             yield return new WaitForSeconds(blackSeconds);
 
-            // 4. The real credits (this time they don't break).
-            if (creditsMusic)
+            // 4. One line on the black, then the guard wakes up in the next scene.
+            yield return FadeText(1, 1.2f);
+            yield return new WaitForSeconds(textSeconds);
+            yield return FadeText(0, 1f);
+            yield return new WaitForSeconds(.4f);
+            Finished?.Invoke();
+            if (load != null)
+                load.allowSceneActivation = true;
+        }
+
+        IEnumerator FadeText(float target, float seconds)
+        {
+            float start = textAlpha;
+            for (float t = 0; t < seconds; t += Time.deltaTime)
             {
-                music.clip = creditsMusic;
-                music.volume = .8f;
-                music.Play();
+                textAlpha = Mathf.Lerp(start, target, t / seconds);
+                yield return null;
             }
 
-            SetPhase(Phase.Credits);
-            yield return new WaitForSeconds(4f);
-            canLeave = true;
-            Finished?.Invoke();
-        }
-
-        void Update()
-        {
-            if (!canLeave)
-                return;
-            var keyboard = Keyboard.current;
-            var pad = Gamepad.current;
-            var mouse = Mouse.current;
-            bool any = (keyboard != null && keyboard.anyKey.wasPressedThisFrame)
-                       || (mouse != null && mouse.leftButton.wasPressedThisFrame)
-                       || (pad != null && (pad.buttonSouth.wasPressedThisFrame || pad.startButton.wasPressedThisFrame));
-            if (any)
-                SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-        }
-
-        void SetPhase(Phase value)
-        {
-            phase = value;
-            phaseStart = Time.time;
+            textAlpha = target;
         }
 
         void OnGUI()
         {
-            if (phase == Phase.None)
+            if (!black)
                 return;
             GUI.depth = -30;
             GUI.matrix = Matrix4x4.identity;
             GUI.color = Color.black;
             GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-            if (phase != Phase.Credits)
-                return;
-            if (titleStyle == null)
+            if (textAlpha > 0 && !string.IsNullOrEmpty(wakeText))
             {
-                lineStyle = new GUIStyle(GUI.skin.label) { fontSize = 30, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white } };
-                titleStyle = new GUIStyle(lineStyle) { fontSize = 64, fontStyle = FontStyle.Bold };
-                hintStyle = new GUIStyle(lineStyle) { fontSize = 18, normal = { textColor = new Color(.6f, .64f, .7f) } };
-            }
-
-            float s = Screen.height / 1080f;
-            GUI.matrix = Matrix4x4.Scale(new Vector3(s, s, 1));
-            float w = Screen.width / s, elapsed = Time.time - phaseStart;
-            // The block rises into place and stays centred, above the hint line.
-            float total = 0;
-            for (int i = 0; i < lines.Length; i++)
-                total += LineHeight(lines[i], i == 0);
-            float rest = (1080 - 80 - total) / 2;
-            float y = Mathf.Max(rest, rest + 240 - elapsed * creditsSpeed);
-            GUI.color = new Color(1, 1, 1, Mathf.Clamp01(elapsed / 1.5f));
-            for (int i = 0; i < lines.Length; i++)
-            {
-                float h = LineHeight(lines[i], i == 0);
-                if (!string.IsNullOrEmpty(lines[i]))
-                    GUI.Label(new Rect(0, y, w, h), lines[i], i == 0 ? titleStyle : lineStyle);
-                y += h;
+                // Same look as the "03:13" on the black between nights.
+                textStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+                textStyle.fontSize = Mathf.RoundToInt(80 * Screen.height / 1080f);
+                textStyle.normal.textColor = new Color(1f, .2f, .12f);
+                GUI.color = new Color(1, 1, 1, textAlpha);
+                GUI.Label(new Rect(0, 0, Screen.width, Screen.height), wakeText, textStyle);
             }
 
             GUI.color = Color.white;
-            if (canLeave)
-                GUI.Label(new Rect(0, 1080 - 80, w, 40), "Pulsa cualquier tecla para volver a empezar", hintStyle);
-            GUI.matrix = Matrix4x4.identity;
-        }
-
-        static float LineHeight(string line, bool title) => title ? 110 : string.IsNullOrEmpty(line) ? 24 : 46;
-
-        AudioSource Source2D()
-        {
-            var source = gameObject.AddComponent<AudioSource>();
-            source.playOnAwake = false;
-            source.spatialBlend = 0;
-            return source;
         }
     }
 }

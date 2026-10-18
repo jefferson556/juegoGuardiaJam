@@ -20,7 +20,12 @@ namespace Piso13.Realidad
 
         bool Lost => Game != null && Game.Phase == P13RealidadGame.GamePhase.Lost;
 
-        void Awake() => kit = new MenuKit(gameObject);
+        void Awake()
+        {
+            kit = new MenuKit(gameObject);
+            // El guardia despierta: la escena empieza con los ojos cerrados y se abren (viene del final del acto 2).
+            gameObject.AddComponent<WakeUpFade>();
+        }
 
         void OnDestroy()
         {
