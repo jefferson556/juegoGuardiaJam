@@ -7,6 +7,7 @@ namespace Piso13.Realidad
     /// Menús de la escena Realidad con el mismo estilo que el resto del juego (MenuKit):
     /// - Pausa con Esc / Start (no mientras están las cámaras o la advertencia en pantalla).
     /// - Pantalla de "Fin del turno" cuando el guardia te atrapa.
+    /// También agrega el despertar al empezar (WakeUpFade) y el final con créditos (P13RealidadEnding).
     /// Corre antes que P13RealidadGame, para que el Esc que abre la pausa no llegue también al juego.
     /// </summary>
     [DefaultExecutionOrder(-10)]
@@ -14,6 +15,8 @@ namespace Piso13.Realidad
     {
         public P13RealidadGame Game;
         public bool Paused { get; private set; }
+        // Créditos al reportar todas las anomalías reales.
+        public P13RealidadEnding Ending { get; private set; }
 
         MenuKit kit;
         bool wasLost;
@@ -25,6 +28,13 @@ namespace Piso13.Realidad
             kit = new MenuKit(gameObject);
             // El guardia despierta: la escena empieza con los ojos cerrados y se abren (viene del final del acto 2).
             gameObject.AddComponent<WakeUpFade>();
+        }
+
+        // En Start, porque P13RealidadGame asigna Game después de crear este componente.
+        void Start()
+        {
+            Ending = gameObject.AddComponent<P13RealidadEnding>();
+            Ending.Game = Game;
         }
 
         void OnDestroy()
@@ -39,7 +49,7 @@ namespace Piso13.Realidad
         void Update()
         {
             kit.Tick();
-            if (Game == null)
+            if (Game == null || (Ending != null && Ending.Running))
                 return;
 
             if (Lost != wasLost)
