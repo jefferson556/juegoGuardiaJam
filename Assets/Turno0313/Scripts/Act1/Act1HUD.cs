@@ -182,7 +182,7 @@ namespace Turno0313
             for (int i = 0; i < AlarmPanel.Keys.Length; i++)
             {
                 var r = new Rect(kx + i % 3 * (keyW + gap), ky + i / 3 * (keyH + gap), keyW, keyH);
-                if (i == panel.Selected && Gamepad.current != null)
+                if (i == panel.Selected && InputPrompts.UsingGamepad)
                 {
                     GUI.color = new Color(.55f, 1f, .7f, .9f);
                     GUI.DrawTexture(new Rect(r.x - 3, r.y - 3, r.width + 6, r.height + 6), Texture2D.whiteTexture);
@@ -196,7 +196,7 @@ namespace Turno0313
                     panel.Press(k);
             }
 
-            GUI.Label(new Rect(px, py + ph - 52, pw, 44), "Teclado: 0-9, Retroceso borra, Esc sale\nMando: cruceta y A, X borra, B sale", hint);
+            InputPrompts.Label(new Rect(px, py + ph - 52, pw, 44), InputPrompts.Pick("[0-9] escribir  ·  {Erase} borra  ·  {Back} sale", "{DPad} y {Confirm} pulsan  ·  {Erase} borra  ·  {Back} sale"), hint);
         }
 
         void Styles()

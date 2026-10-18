@@ -157,7 +157,7 @@ namespace Piso13.Realidad
             GUI.depth = -35;
             if (phase == Phase.Credits)
             {
-                CreditsRoll.Draw(Time.time - creditsStart, canLeave ? "Pulsa cualquier tecla para volver al menú" : null);
+                CreditsRoll.Draw(Time.time - creditsStart, canLeave ? InputPrompts.Pick("Pulsa cualquier tecla para volver al menú", "Pulsa cualquier botón para volver al menú") : null);
                 return;
             }
 

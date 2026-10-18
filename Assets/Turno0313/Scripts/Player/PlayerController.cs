@@ -63,7 +63,9 @@ namespace Turno0313
             {
                 if (GameInput.Pause.WasPressedThisFrame())
                     CaptureCursor(Cursor.lockState != CursorLockMode.Locked);
-                else if (Cursor.lockState != CursorLockMode.Locked && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+                // Click, or the gamepad's A / ✕, takes the cursor back (after alt-tab, for instance).
+                else if (Cursor.lockState != CursorLockMode.Locked
+                         && ((Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) || (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame)))
                     CaptureCursor(true);
             }
 

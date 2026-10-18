@@ -251,6 +251,9 @@ namespace Turno0313
 
         public void Small(Rect r, string text) => GUI.Label(r, text, small);
 
+        // Small text with button tokens ("{Report} reportar"), drawn for the device in use (InputPrompts).
+        public void Prompts(Rect r, string text) => InputPrompts.Label(r, text, small);
+
         public void Button(Rect r, string text, Action action)
         {
             int id = commands.Count;

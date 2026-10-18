@@ -313,11 +313,14 @@ namespace Turno0313
                 small.normal.textColor = new Color(.62f, .66f, .72f);
             }
 
+            // Keys or gamepad buttons, whichever is in use (InputPrompts).
             string hints = Enlarged < 0
-                ? "Clic o 1-" + Mathf.Min(9, SecurityCamera.All.Count) + ": ver una cámara  ·  Esc: salir\nMando: cruceta y A, B sale"
-                : "Clic o R: reportar lo que apuntas  ·  ← →: cambiar de cámara  ·  Esc: volver\nMando: stick mueve, A reporta, LB/RB cambian, B vuelve";
+                ? InputPrompts.Pick("Clic o [1-" + Mathf.Min(9, SecurityCamera.All.Count) + "]: ver una cámara  ·  {Back} salir",
+                    "{DPad} elegir  ·  {Confirm} ver una cámara  ·  {Back} salir")
+                : InputPrompts.Pick("Clic o {Report}: reportar lo que apuntas  ·  {Shoulders} cambiar de cámara  ·  {Back} volver",
+                    "{Move} apuntar  ·  {Confirm} reportar  ·  {Shoulders} cambiar de cámara  ·  {Back} volver");
             if (!Locked)
-                GUI.Label(new Rect(0, 1080 - 72, w, 52), hints, small);
+                InputPrompts.Label(new Rect(0, 1080 - 72, w, 52), hints, small);
             GUI.matrix = Matrix4x4.identity;
         }
 
@@ -333,7 +336,7 @@ namespace Turno0313
             for (int i = 0; i < count; i++)
             {
                 var r = new Rect(x0 + i % 3 * (cellW + gap), y0 + i / 3 * (cellH + gap), cellW, cellH);
-                bool hover = r.Contains(e.mousePosition) || (Gamepad.current != null && i == gridCursor);
+                bool hover = r.Contains(e.mousePosition) || (InputPrompts.UsingGamepad && i == gridCursor);
                 DrawFeed(r, cams[i], hover);
                 if (e.type == EventType.MouseDown && e.button == 0 && r.Contains(e.mousePosition))
                 {

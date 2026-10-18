@@ -68,23 +68,24 @@ namespace Turno0313
                 GUI.DrawTexture(new Rect(w / 2 - 3, h / 2 - 3, 6, 6), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
+            // Keys and buttons follow the device in use (InputPrompts).
             var prompt = new StringBuilder();
             if (steering && interactor && interactor.Current)
-                prompt.Append("[E] ").Append(interactor.Current.Prompt);
+                prompt.Append("{Interact} ").Append(interactor.Current.Prompt);
             if (steering && reporter && reporter.Aiming)
-                prompt.Append(prompt.Length > 0 ? "     " : "").Append("[R] Reportar");
+                prompt.Append(prompt.Length > 0 ? "     " : "").Append("{Report} Reportar");
             if (prompt.Length > 0)
-                Shadowed(new Rect(0, h / 2 + 34, w, 34), prompt.ToString(), label);
+                InputPrompts.Label(new Rect(0, h / 2 + 34, w, 34), prompt.ToString(), label, true);
 
             if (!string.IsNullOrEmpty(message) && Time.time < messageUntil)
-                Shadowed(new Rect(0, h * .72f, w, 40), message, label);
+                InputPrompts.Label(new Rect(0, h * .72f, w, 40), message, label, true);
 
             if (Time.timeSinceLevelLoad < helpSeconds)
-                Shadowed(new Rect(24, 20, 1000, 26), "WASD moverse · Shift correr · E interactuar · R / clic derecho reportar · F linterna · Tab bitácora · Esc pausa"
-                    + (Application.isEditor || Debug.isDebugBuild ? " · F1 pruebas" : ""), small);
+                InputPrompts.Label(new Rect(24, 20, 1200, 26), "{Move} moverse · {Run} correr · {Interact} interactuar · {Report} reportar · {Flashlight} linterna · {Notes} bitácora · {Pause} pausa"
+                    + (!InputPrompts.UsingGamepad && (Application.isEditor || Debug.isDebugBuild) ? " · [F1] pruebas" : ""), small, true);
 
             if (steering && Cursor.lockState != CursorLockMode.Locked)
-                Shadowed(new Rect(0, h / 2 - 80, w, 34), "Clic para seguir jugando", label);
+                InputPrompts.Label(new Rect(0, h / 2 - 80, w, 34), InputPrompts.Pick("Clic para seguir jugando", "Pulsa {Confirm} para seguir jugando"), label, true);
 
             if (panel)
                 DrawPanel();
@@ -115,15 +116,6 @@ namespace Turno0313
                 text.Append("No hay AnomalyManager en la escena.");
 
             GUI.Box(new Rect(24, 60, 560, 70 + 22 * (manager ? manager.Anomalies.Count + 2 : 1)), text.ToString(), box);
-        }
-
-        static void Shadowed(Rect r, string text, GUIStyle style)
-        {
-            var color = style.normal.textColor;
-            style.normal.textColor = new Color(0, 0, 0, .8f);
-            GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), text, style);
-            style.normal.textColor = color;
-            GUI.Label(r, text, style);
         }
     }
 }

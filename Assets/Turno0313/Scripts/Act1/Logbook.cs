@@ -58,7 +58,7 @@ namespace Turno0313
             // One note per position (at most four per code).
             entries.Add((carrier.Position, Ordinal(carrier.Position) + " dígito = " + carrier.Digit + "   (" + anomaly.DisplayName + ")"));
             entries.Sort((a, b) => a.position.CompareTo(b.position));
-            GameMessages.Show("Anotado en la bitácora: " + Ordinal(carrier.Position) + " dígito = " + carrier.Digit + "   (Tab para verla)", 4f);
+            GameMessages.Show("Anotado en la bitácora: " + Ordinal(carrier.Position) + " dígito = " + carrier.Digit + "   ({Notes} para verla)", 4f);
         }
 
         // A new code (back from Act 2) makes the old notes useless.
@@ -149,7 +149,7 @@ namespace Turno0313
                 y += h + 4;
             }
 
-            GUI.Label(new Rect(r.x, r.yMax - 30, r.width, 22), besideKeypad ? "Lo que has anotado esta partida" : "Tab / Select para cerrar", hint);
+            InputPrompts.Label(new Rect(r.x, r.yMax - 30, r.width, 22), besideKeypad ? "Lo que has anotado esta partida" : "{Notes} para cerrar", hint);
         }
 
         const string Empty = "Todavía no hay nada anotado.\nAl reportar una anomalía con un número, el guardia lo apunta aquí.";

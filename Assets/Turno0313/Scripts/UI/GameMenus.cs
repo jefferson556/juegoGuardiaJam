@@ -18,7 +18,8 @@ namespace Turno0313
         public bool OnTitle { get; private set; }
         public bool Paused { get; private set; }
 
-        const string Controls = "WASD moverse · Shift correr · E interactuar · F linterna\nR o clic derecho reportar · Tab bitácora · Esc pausa\nMando: A interactuar · Y reportar · RB linterna · Select bitácora · Start pausa";
+        // Tokens: InputPrompts shows the keys or the buttons of the gamepad in use.
+        const string Controls = "{Move} moverse  ·  {Look} mirar  ·  {Run} correr\n{Interact} interactuar  ·  {Report} reportar  ·  {Flashlight} linterna\n{Notes} bitácora  ·  {Pause} pausa";
 
         MenuKit kit;
         bool autoActivate = true;
@@ -75,7 +76,7 @@ namespace Turno0313
 
             if (PlayerController.Instance)
                 PlayerController.Instance.SetControl(true);
-            GameMessages.Show("WASD moverse · E interactuar · R reportar · F linterna · Tab bitácora · Esc pausa", 6f);
+            GameMessages.Show("{Move} moverse · {Interact} interactuar · {Report} reportar · {Flashlight} linterna · {Notes} bitácora · {Pause} pausa", 6f);
         }
 
         public void SetPaused(bool paused)
@@ -140,7 +141,7 @@ namespace Turno0313
             kit.Text(new Rect(74, 214, 430, 60), tagline);
             kit.Button(new Rect(70, 300, 390, 48), "Jugar", StartGame);
             kit.Button(new Rect(70, 362, 390, 48), "Salir", Quit);
-            kit.Small(new Rect(74, 620, 450, 70), Controls);
+            kit.Prompts(new Rect(74, 612, 470, 80), Controls);
         }
     }
 }
