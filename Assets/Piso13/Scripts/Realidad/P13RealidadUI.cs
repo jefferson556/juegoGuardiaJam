@@ -145,7 +145,10 @@ namespace Piso13.Realidad
             int hour = (Game.Minute / 60) % 24;
             int minute = Game.Minute % 60;
             GUI.Label(new Rect(37, 26, 280, 28), string.Format("{0:00}:{1:00} AM  ·  PISO 12", hour, minute), heading);
-            GUI.Label(new Rect(37, 57, 280, 26), "Energía " + Mathf.CeilToInt(Game.Energy) + "%", small);
+            // Anomalías reales reportadas (P13RealidadEnding): al llegar al total salen los créditos
+            var ending = Game.Menus != null ? Game.Menus.Ending : null;
+            string anomalies = ending != null ? "  ·  Anomalías " + ending.Found + "/" + ending.Total : "";
+            GUI.Label(new Rect(37, 57, 280, 26), "Energía " + Mathf.CeilToInt(Game.Energy) + "%" + anomalies, small);
 
             // 2. Barra de Realidad (Aparece únicamente tras cerrar la ventana emergente de alerta)
             if (Game.ModalDismissed)

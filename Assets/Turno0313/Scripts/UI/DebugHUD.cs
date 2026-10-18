@@ -80,7 +80,8 @@ namespace Turno0313
                 Shadowed(new Rect(0, h * .72f, w, 40), message, label);
 
             if (Time.timeSinceLevelLoad < helpSeconds)
-                Shadowed(new Rect(24, 20, 900, 26), "WASD moverse · Shift correr · E interactuar · R / clic derecho reportar · F linterna · Esc soltar el mouse · F1 pruebas", small);
+                Shadowed(new Rect(24, 20, 1000, 26), "WASD moverse · Shift correr · E interactuar · R / clic derecho reportar · F linterna · Tab bitácora · Esc pausa"
+                    + (Application.isEditor || Debug.isDebugBuild ? " · F1 pruebas" : ""), small);
 
             if (steering && Cursor.lockState != CursorLockMode.Locked)
                 Shadowed(new Rect(0, h / 2 - 80, w, 34), "Clic para seguir jugando", label);

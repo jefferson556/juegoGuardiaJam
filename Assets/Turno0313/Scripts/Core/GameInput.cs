@@ -13,6 +13,7 @@ namespace Turno0313
         public static readonly InputAction Report = new InputAction("Report", InputActionType.Button);
         public static readonly InputAction Flashlight = new InputAction("Flashlight", InputActionType.Button);
         public static readonly InputAction Pause = new InputAction("Pause", InputActionType.Button);
+        public static readonly InputAction Notes = new InputAction("Notes", InputActionType.Button);
 
         static bool ready;
 
@@ -49,7 +50,10 @@ namespace Turno0313
             Pause.AddBinding("<Keyboard>/escape");
             Pause.AddBinding("<Gamepad>/start");
 
-            foreach (var action in new[] { Move, LookMouse, LookStick, Run, Interact, Report, Flashlight, Pause })
+            Notes.AddBinding("<Keyboard>/tab");
+            Notes.AddBinding("<Gamepad>/select");
+
+            foreach (var action in new[] { Move, LookMouse, LookStick, Run, Interact, Report, Flashlight, Pause, Notes })
                 action.Enable();
         }
     }

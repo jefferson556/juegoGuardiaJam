@@ -16,6 +16,9 @@ namespace Piso13.Realidad
     {
         public P13RealidadGame Game;
         public bool Running { get; private set; }
+        // Para el HUD: "Anomalías 2/4".
+        public int Found { get; private set; }
+        public int Total { get; private set; } = 4;
 
         [Tooltip("Segundos para leer el último \"¡ANOMALÍA ENCONTRADA!\" antes del fundido.")]
         public float ReadSeconds = 1.8f;
@@ -79,10 +82,15 @@ namespace Piso13.Realidad
             if (checkTimer > 0)
                 return;
             checkTimer = .25f;
-            foreach (bool done in Reported())
-                if (!done)
-                    return;
-            StartCoroutine(Run());
+            var reported = Reported();
+            int found = 0;
+            foreach (bool done in reported)
+                if (done)
+                    found++;
+            Found = found;
+            Total = reported.Length;
+            if (found == reported.Length)
+                StartCoroutine(Run());
         }
 
         IEnumerator Run()

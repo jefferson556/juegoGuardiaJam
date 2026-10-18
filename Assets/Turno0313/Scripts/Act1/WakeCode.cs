@@ -28,6 +28,9 @@ namespace Turno0313
             if (carriers.Length != AlarmPanel.Length)
                 Debug.LogWarning("Hay " + carriers.Length + " anomalías con dígito y el código tiene " + AlarmPanel.Length + ".", this);
             Shuffle();
+            // The guard's notes on the code (Tab).
+            if (!GetComponent<Logbook>())
+                gameObject.AddComponent<Logbook>();
         }
 
         void Start()
