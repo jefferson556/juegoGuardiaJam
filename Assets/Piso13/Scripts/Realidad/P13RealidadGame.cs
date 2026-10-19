@@ -960,6 +960,15 @@ namespace Piso13.Realidad
                 CursorLock(true);
             }
 
+            // Inmovilizado (llamada o cinemática final): no se abren ni se cierran las cámaras ni se cambia de cámara,
+            // así la cinemática final se queda en la CAM 05 hasta el corte a negro
+            if (IsPlayerMovementFrozen)
+            {
+                toggleEsc = false;
+                toggleCCTV = false;
+                camStep = 0;
+            }
+
             // Fuera de las cámaras, Esc abre la pausa (P13RealidadMenus)
             if (toggleEsc && CCTV)
             {
