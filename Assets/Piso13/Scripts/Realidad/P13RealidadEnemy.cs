@@ -62,11 +62,13 @@ namespace Piso13.Realidad
         public float MaxHearingDistance = 16f;
         public float MaxBreathingVolume = 0.85f;
         public float MaxFootstepVolume = 0.75f;
-        public float FootstepInterval = 0.85f;
 
         private AudioSource breathingSource;
-        private AudioSource stepSource;
-        private bool alternateStep = false;
+        private AudioSource stepSource; // pisadas en bucle mientras camina
+        private AudioSource dragSource; // arrastre en bucle mientras camina
+        private bool walking = false;
+        // El clip de pisadas empieza con un fundido de entrada: el bucle se salta esos segundos
+        const float FeetLoopStart = 12f;
 
         public static Action<string, Vector3, float> OnGlobalMapEvent;
 
@@ -108,7 +110,6 @@ namespace Piso13.Realidad
         float clock = 0f;
         float decisionTimer = 5f;
         float doorTimer = 0f;
-        float stepDistance = 0f;
         float confidence = 0f;
         float lastSeen = -999f;
         float lastHeard = -999f;
@@ -194,20 +195,25 @@ namespace Piso13.Realidad
                 breathingSource.volume = 0f;
             }
 
-            if (stepSource == null)
-            {
-                var stepGo = new GameObject("Enemy_StepAudio");
-                stepGo.transform.SetParent(audioParent, false);
-                stepGo.transform.localPosition = new Vector3(0, 0.2f, 0); // Nivel de pies
-                stepSource = stepGo.AddComponent<AudioSource>();
-                stepSource.playOnAwake = false;
-                stepSource.loop = false;
-                stepSource.spatialBlend = 1.0f; // 3D
-                stepSource.rolloffMode = AudioRolloffMode.Logarithmic;
-                stepSource.minDistance = 1.5f;
-                stepSource.maxDistance = MaxHearingDistance + 2f;
-                stepSource.volume = MaxFootstepVolume;
-            }
+            if (stepSource == null) stepSource = StepLoopSource("Enemy_StepAudio", audioParent, FeetClip);
+            if (dragSource == null) dragSource = StepLoopSource("Enemy_DragAudio", audioParent, DraggingClip);
+        }
+
+        AudioSource StepLoopSource(string name, Transform parent, AudioClip clip)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(0, 0.2f, 0); // Nivel de pies
+            var source = go.AddComponent<AudioSource>();
+            source.playOnAwake = false;
+            source.loop = true;
+            source.spatialBlend = 1.0f; // 3D
+            source.rolloffMode = AudioRolloffMode.Logarithmic;
+            source.minDistance = 1.5f;
+            source.maxDistance = MaxHearingDistance + 2f;
+            source.clip = clip;
+            source.volume = 0f;
+            return source;
         }
 
         public void ApplySpawnPosition()
@@ -231,16 +237,17 @@ namespace Piso13.Realidad
             memory = null;
             SlowTimer = 0f;
             SpeedBoostTimer = 0f;
-            stepDistance = 0f;
-            alternateStep = false;
+            walking = false;
             if (breathingSource != null)
             {
                 breathingSource.volume = 0f;
                 breathingSource.Stop();
             }
-            if (stepSource != null)
+            foreach (var source in new[] { stepSource, dragSource })
             {
-                stepSource.Stop();
+                if (source == null) continue;
+                source.volume = 0f;
+                source.Stop();
             }
             if (navigator != null) navigator.ClearPath();
             Publish();
@@ -418,6 +425,7 @@ namespace Piso13.Realidad
         {
             clock += dt;
             UpdateAudio(dt);
+            walking = false; // se vuelve a marcar abajo si se mueve en este tick
 
             // Inicialización tardía de percepción si no existía
             if (perception == null && Game != null && navigation != null)
@@ -761,14 +769,7 @@ namespace Piso13.Realidad
                 float travelled;
                 Position = navigator.TickMovement(Position, Speed, dt, Yaw, out newYaw, out travelled);
                 Yaw = newYaw;
-
-                stepDistance += travelled;
-                float currentInterval = State == RealidadEnemyState.Hunting ? 0.65f : FootstepInterval;
-                if (stepDistance > currentInterval)
-                {
-                    stepDistance = 0f;
-                    PlayFootstepSound();
-                }
+                walking = travelled > 0.001f;
 
                 string animName = State == RealidadEnemyState.Hunting ? "run" : State == RealidadEnemyState.Investigating ? "walk" : "patrol";
                 PlayAnimation(animName, Mathf.Clamp(Speed / (State == RealidadEnemyState.Hunting ? 2.2f : 0.95f), 0.7f, 1.5f));
@@ -776,7 +777,6 @@ namespace Piso13.Realidad
             else
             {
                 Speed = 0f;
-                stepDistance = 0f;
                 PlayAnimation("idle");
             }
 
@@ -817,9 +817,11 @@ namespace Piso13.Realidad
                 if (p && breathingSource.isPlaying) breathingSource.Pause();
                 else if (!p && breathingSource.volume > 0.01f) breathingSource.UnPause();
             }
-            if (stepSource != null && p && stepSource.isPlaying)
+            // Al reanudar, UpdateStepLoops los vuelve a sonar si sigue caminando
+            if (p)
             {
-                stepSource.Pause();
+                if (stepSource != null && stepSource.isPlaying) stepSource.Pause();
+                if (dragSource != null && dragSource.isPlaying) dragSource.Pause();
             }
         }
 
@@ -833,6 +835,7 @@ namespace Piso13.Realidad
             {
                 if (breathingSource.isPlaying) breathingSource.Pause();
                 if (stepSource != null && stepSource.isPlaying) stepSource.Pause();
+                if (dragSource != null && dragSource.isPlaying) dragSource.Pause();
                 return;
             }
             else
@@ -843,6 +846,8 @@ namespace Piso13.Realidad
                     if (!breathingSource.isPlaying) breathingSource.Play();
                 }
             }
+
+            UpdateStepLoops(dt);
 
             // En reposo inicial (Dormant), la respiración está silenciada
             if (State == RealidadEnemyState.Dormant)
@@ -874,27 +879,44 @@ namespace Piso13.Realidad
             }
         }
 
-        void PlayFootstepSound()
+        // Pasos: las pisadas (90 s) y el arrastre (12 s) son grabaciones continuas, así que suenan en bucle
+        // mientras camina y se apagan al detenerse. Lanzar el clip entero en cada paso acumulaba decenas de copias.
+        void UpdateStepLoops(float dt)
         {
-            if (stepSource == null) return;
-            if (Game == null || Game.ShowModal || Game.Phase != P13RealidadGame.GamePhase.Playing) return;
-
-            float dist = Vector3.Distance(Position, Game.PlayerPosition);
-            if (dist > MaxHearingDistance + 2f) return;
-
-            // Factor de volumen por cercanía
-            float proximity = Mathf.Clamp01(1f - (dist / (MaxHearingDistance + 2f)));
-            float vol = Mathf.Pow(proximity, 1.25f) * MaxFootstepVolume * (State == RealidadEnemyState.Hunting ? 1.0f : 0.85f);
-
-            // Alternar entre paso normal (FeetClip) y arrastre (DraggingClip)
-            alternateStep = !alternateStep;
-            AudioClip clipToPlay = alternateStep ? FeetClip : DraggingClip;
-            if (clipToPlay == null) clipToPlay = FeetClip ?? DraggingClip;
-
-            if (clipToPlay != null)
+            float target = 0f;
+            if (walking)
             {
-                stepSource.pitch = UnityEngine.Random.Range(0.92f, 1.08f);
-                stepSource.PlayOneShot(clipToPlay, vol);
+                float dist = Vector3.Distance(Position, Game.PlayerPosition);
+                float proximity = Mathf.Clamp01(1f - (dist / (MaxHearingDistance + 2f)));
+                target = Mathf.Pow(proximity, 1.25f) * MaxFootstepVolume * (State == RealidadEnemyState.Hunting ? 1.0f : 0.85f);
+            }
+            float pitch = State == RealidadEnemyState.Hunting ? 1.15f : 1f;
+            FadeLoop(stepSource, target, pitch, FeetLoopStart, dt);
+            FadeLoop(dragSource, target * 0.6f, pitch, 0f, dt);
+        }
+
+        static void FadeLoop(AudioSource source, float target, float pitch, float loopStart, float dt)
+        {
+            if (source == null || source.clip == null) return;
+            source.volume = Mathf.MoveTowards(source.volume, target, dt * 3f);
+            source.pitch = pitch;
+            if (source.volume > 0.01f)
+            {
+                if (!source.isPlaying)
+                {
+                    source.UnPause();
+                    if (!source.isPlaying)
+                    {
+                        source.Play();
+                        source.time = UnityEngine.Random.Range(loopStart, source.clip.length * 0.9f);
+                    }
+                }
+                // Al dar la vuelta, saltar el fundido de entrada del clip
+                if (source.time < loopStart) source.time = loopStart;
+            }
+            else if (source.isPlaying)
+            {
+                source.Pause();
             }
         }
 
@@ -907,6 +929,10 @@ namespace Piso13.Realidad
             if (stepSource != null)
             {
                 stepSource.Stop();
+            }
+            if (dragSource != null)
+            {
+                dragSource.Stop();
             }
         }
 
