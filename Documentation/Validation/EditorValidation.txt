@@ -1,0 +1,1 @@
+PASS 1190 comprobaciones de recursos y lógica en Unity. No constituye una prueba interactiva ni de FPS.

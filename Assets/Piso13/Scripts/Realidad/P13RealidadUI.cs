@@ -83,6 +83,12 @@ namespace Piso13.Realidad
             // Matriz virtual responsiva 1152x720
             GUI.matrix = Matrix4x4.Scale(new Vector3(Screen.width / Width, Screen.height / Height, 1));
 
+            if (Game.Phase == P13RealidadGame.GamePhase.DemoEnded)
+            {
+                DemoEndedScreen();
+                return;
+            }
+
             if (Game.Phase == P13RealidadGame.GamePhase.Capture)
             {
                 // Velo oscuro sutil durante la animación de captura / jumpscare
@@ -189,20 +195,20 @@ namespace Piso13.Realidad
             }
 
             // 3. Panel Inferior: Objetivos e Instrucciones
-            Panel(new Rect(22, 604, 880, 91), 0.78f);
+            Panel(new Rect(22, 598, 980, 102), 0.78f);
 
             // Texto de Objetivo Dinámico
             string objectiveText = !Game.ModalDismissed 
-                ? "Algo no parece normal, busca lo que no encaja."
+                ? "Algo no parece normal, busca lo que no encaja. Recuerda revisar las cámaras de vez en cuando si no encuentras nada raro."
                 : "Busca lo que no encaja, él se ha empezado a mover, si no te das prisa te encontrará.";
 
-            GUI.Label(new Rect(37, 614, 850, 30), objectiveText, body);
+            GUI.Label(new Rect(37, 608, 950, 44), objectiveText, body);
 
             // Controles: teclas o botones del mando en uso (InputPrompts)
             string controlsText = Game.IsPlayerAtCCTVStation()
                 ? "{Interact} puerta  ·  {Report} reportar anomalía  ·  {Cameras} CCTV  ·  {Flashlight} linterna  ·  {Crouch} agacharse  ·  {Pause} pausa"
                 : "{Interact} puerta  ·  {Report} reportar anomalía  ·  {Flashlight} linterna  ·  {Crouch} agacharse  ·  {Pause} pausa";
-            Turno0313.InputPrompts.Label(new Rect(37, 652, 850, 30), controlsText, small);
+            Turno0313.InputPrompts.Label(new Rect(37, 660, 950, 28), controlsText, small);
 
             // Mensajes temporales si los hay (Toast centrado y destacado)
             if (!string.IsNullOrEmpty(Game.NotificationMessage))
@@ -307,6 +313,97 @@ namespace Piso13.Realidad
                 Panel(promptRect, 0.92f, new Color(0.40f, 0.08f, 0.08f, 0.92f));
                 Turno0313.InputPrompts.Label(promptRect, Turno0313.InputPrompts.FromKeys(Game.CurrentInteractionPrompt), body);
             }
+        }
+
+        void DemoEndedScreen()
+        {
+            // Forzar permanentemente el cursor desbloqueado y visible
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+
+            // 1. Pantalla total e inmediatamente negra
+            var oldColor = GUI.color;
+            GUI.color = Color.black;
+            GUI.DrawTexture(new Rect(0, 0, Width, Height), Texture2D.whiteTexture);
+            GUI.color = oldColor;
+
+            // 2. Estilos para la tipografía final
+            GUIStyle companyStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 17,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter
+            };
+            companyStyle.normal.textColor = new Color(0.68f, 0.72f, 0.74f);
+
+            GUIStyle titleStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 44,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter
+            };
+            titleStyle.normal.textColor = warningRed;
+
+            GUIStyle quoteStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 22,
+                fontStyle = FontStyle.Italic,
+                alignment = TextAnchor.MiddleCenter
+            };
+            quoteStyle.normal.textColor = new Color(0.92f, 0.94f, 0.94f);
+
+            GUIStyle endStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 19,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter
+            };
+            endStyle.normal.textColor = new Color(0.55f, 0.78f, 0.72f);
+
+            // Textos requeridos
+            GUI.Label(new Rect(0, 160, Width, 32), "NEXORAGAMES PRESENTA", companyStyle);
+            GUI.Label(new Rect(0, 210, Width, 65), "PISO 13", titleStyle);
+            GUI.Label(new Rect(0, 310, Width, 40), "«Nunca estuviste despierto o si ?»", quoteStyle);
+            GUI.Label(new Rect(0, 380, Width, 35), "FIN DE LA DEMO", endStyle);
+
+            // 3. Botón para volver al menú principal
+            GUIStyle btnStyle = new GUIStyle(GUI.skin.button)
+            {
+                fontSize = 18,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter
+            };
+
+            bool keyPressed = false;
+#if ENABLE_INPUT_SYSTEM
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (kb != null && (kb.enterKey.wasPressedThisFrame || kb.spaceKey.wasPressedThisFrame || kb.escapeKey.wasPressedThisFrame))
+                keyPressed = true;
+#endif
+            try
+            {
+                if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Escape))
+                    keyPressed = true;
+            }
+            catch {}
+
+            var oldBg = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(0.18f, 0.28f, 0.26f);
+            if (GUI.Button(new Rect(Width * 0.5f - 160, 480, 320, 52), "Volver al menú principal", btnStyle) || keyPressed)
+            {
+                if (Game != null)
+                {
+                    Game.BackToMenuFromEnding();
+                }
+                else
+                {
+                    AudioListener.pause = false;
+                    Cursor.lockState = CursorLockMode.None;
+                    Cursor.visible = true;
+                    UnityEngine.SceneManagement.SceneManager.LoadScene(Turno0313.MenuKit.TitleScene);
+                }
+            }
+            GUI.backgroundColor = oldBg;
         }
     }
 }

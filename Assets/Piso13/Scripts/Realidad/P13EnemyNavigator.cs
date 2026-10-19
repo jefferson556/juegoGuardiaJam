@@ -29,7 +29,7 @@ namespace Piso13.Realidad
         float positionSampleTimer = 0f;
 
         public bool HasPath => route != null && routeIndex < route.Count;
-        public bool ReachedDestination => hasGoal && Vector3.Distance(new Vector3(lastPositionSample.x, 0f, lastPositionSample.z), new Vector3(currentGoal.x, 0f, currentGoal.z)) < 0.65f;
+        public bool ReachedDestination => hasGoal && (!HasPath || Vector3.Distance(new Vector3(lastPositionSample.x, 0f, lastPositionSample.z), new Vector3(currentGoal.x, 0f, currentGoal.z)) < 0.65f);
         public Vector3 CurrentGoal => currentGoal;
         public List<Vector3> CurrentRoute => route;
 
@@ -42,6 +42,7 @@ namespace Piso13.Realidad
         public void SetDestination(Vector3 goal, Vector3 currentPos, bool forceReplan = false)
         {
             goal.y = 0.8f;
+            lastPositionSample = currentPos;
             // Si no tiene meta, o no tiene camino válido, o se fuerza replan, o la meta cambió
             if (!hasGoal || !HasPath || forceReplan || (goal - currentGoal).sqrMagnitude > 0.36f || (replanCooldown <= 0f && (goal - currentGoal).sqrMagnitude > 0.04f))
             {

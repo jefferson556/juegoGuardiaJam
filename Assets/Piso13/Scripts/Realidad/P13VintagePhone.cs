@@ -23,6 +23,7 @@ namespace Piso13.Realidad
         public AudioClip RingClip;
         public AudioClip VoiceClip;
         public AudioClip HangupClip;
+        public AudioClip VoiceElenaFinalClip;
 
         private AudioSource ringSource;
         private AudioSource callSource;
@@ -30,6 +31,7 @@ namespace Piso13.Realidad
         private bool hasAnswered = false;
         private bool isRinging = false;
         private bool isCallInProgress = false;
+        private bool isEndingCall = false;
 
         [Header("Reporte de Falsa Anomalía")]
         public float MaxReportDistance = 2.5f;
@@ -39,8 +41,9 @@ namespace Piso13.Realidad
         public bool HasAnswered => hasAnswered;
         public bool IsRinging => isRinging;
         public bool IsCallInProgress => isCallInProgress;
-        public bool CanAnswer => isRinging && !isCallInProgress && !hasAnswered;
-        public bool CanReport => hasAnswered && !isCallInProgress && !IsReported;
+        public bool IsEndingCall => isEndingCall;
+        public bool CanAnswer => isRinging && !isCallInProgress && (!hasAnswered || isEndingCall);
+        public bool CanReport => hasAnswered && !isCallInProgress && !IsReported && !isEndingCall;
 
         void Awake()
         {
@@ -77,6 +80,16 @@ namespace Piso13.Realidad
 
         void Update()
         {
+            if (isEndingCall)
+            {
+                // Durante la llamada final, timbra continuamente hasta que el jugador conteste
+                if (!hasAnswered && !isCallInProgress && !isRinging)
+                {
+                    StartEndingRinging();
+                }
+                return;
+            }
+
             if (hasAnswered || isCallInProgress)
             {
                 if (isRinging) StopRinging();
@@ -96,6 +109,20 @@ namespace Piso13.Realidad
             else if (isRinging && dist > ExitDistance)
             {
                 StopRinging();
+            }
+        }
+
+        public void StartEndingRinging()
+        {
+            if (isCallInProgress) return;
+            isEndingCall = true;
+            hasAnswered = false; // Permite contestar esta llamada especial
+            isRinging = true;
+            if (ringSource != null && RingClip != null)
+            {
+                ringSource.clip = RingClip;
+                ringSource.loop = true;
+                if (!ringSource.isPlaying) ringSource.Play();
             }
         }
 
@@ -129,8 +156,69 @@ namespace Piso13.Realidad
 
             hasAnswered = true;
             StopRinging();
-            StartCoroutine(CallSequenceRoutine());
+
+            if (isEndingCall)
+            {
+                StartCoroutine(EndingCallSequenceRoutine());
+            }
+            else
+            {
+                StartCoroutine(CallSequenceRoutine());
+            }
             return true;
+        }
+
+        private IEnumerator EndingCallSequenceRoutine()
+        {
+            isCallInProgress = true;
+
+            // 1. Inmovilizar al guardia en la oficina y congelar la barra de realidad (inmunidad a Game Over)
+            if (Game != null)
+            {
+                Game.OnEndingCallAnswered();
+            }
+
+            // 2. Iniciar la reproducción de voz-elena-final
+            if (VoiceElenaFinalClip == null) VoiceElenaFinalClip = Resources.Load<AudioClip>("Audio/voz-elena-final");
+            if (callSource != null && VoiceElenaFinalClip != null)
+            {
+                callSource.clip = VoiceElenaFinalClip;
+                callSource.Play();
+            }
+
+            // 3. Esperar 9 segundos a partir de que contesta el teléfono para pasar automáticamente a la cámara
+            if (Game != null)
+            {
+                Game.StartCoroutine(Game.TransitionToCameraAfterDelay(9.0f));
+            }
+
+            // Esperar a que concluya el audio de voz de Elena
+            if (VoiceElenaFinalClip != null)
+            {
+                yield return new WaitForSeconds(VoiceElenaFinalClip.length);
+            }
+            else
+            {
+                yield return new WaitForSeconds(15.0f);
+            }
+
+            // 4. Reproducir cuelga-telefono
+            if (callSource != null && HangupClip != null)
+            {
+                callSource.clip = HangupClip;
+                callSource.Play();
+                yield return new WaitForSeconds(HangupClip.length);
+            }
+            else
+            {
+                yield return new WaitForSeconds(1.5f);
+            }
+
+            // 5. Corte inmediato a negro y fin de demo
+            if (Game != null)
+            {
+                Game.OnEndingCallCompleted();
+            }
         }
 
         private IEnumerator CallSequenceRoutine()

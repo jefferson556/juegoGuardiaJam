@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -16,7 +17,8 @@ namespace Piso13.Realidad
         {
             Playing,
             Capture,
-            Lost
+            Lost,
+            DemoEnded
         }
 
         [Header("Mundo")]
@@ -48,10 +50,18 @@ namespace Piso13.Realidad
         public bool ModalDismissed = false;
         public bool CCTV = false;
         public int CameraIndex = 0;
-        public bool Captured => Phase == GamePhase.Capture || Phase == GamePhase.Lost;
+        public bool Captured => Phase == GamePhase.Capture || Phase == GamePhase.Lost || Phase == GamePhase.DemoEnded;
         public string NotificationMessage = "";
         public string CurrentInteractionPrompt = "";
         public float DoorShake = 0f;
+
+        [Header("Secuencia Final de la Demo")]
+        public bool EndingSequenceTriggered = false;
+        public bool EndingPhoneRinging = false;
+        public bool IsRealityFrozen = false;
+        private float endingPhoneTimer = 5.0f;
+        private bool isEndingCinematicActive = false;
+        private AudioSource endingZombieAudio;
 
         [Header("Referencias a Elementos del Mapa")]
         public P13CoffeeCup CoffeeCup;
@@ -166,6 +176,7 @@ namespace Piso13.Realidad
             ModalDismissed = false;
             modalTriggered = false;
             pendingAlertModal = false;
+            IsPhoneCallActive = false;
             CCTV = false;
             CameraIndex = 0;
             HasOpenedCCTVBefore = false;
@@ -381,8 +392,7 @@ namespace Piso13.Realidad
             Enemy.Game = this;
             Enemy.ApplySpawnPosition();
             Enemy.SetupCharacter();
-            Enemy.InitNavigation(World);
-            // El enemigo permanece inactivo hasta encontrar la primera anomalía o pasar los 30s
+            // El guardia NO hace spawn al inicio; permanece inactivo hasta después de la advertencia
             enemyGo.SetActive(false);
         }
 
@@ -402,8 +412,7 @@ namespace Piso13.Realidad
             ShowModal = true;
             CursorLock(false);
 
-            // Hacer spawn del enemigo en su punto de spawn oficial (CAM09 / Almacén)
-            SpawnEnemy();
+            // El guardia hace spawn después de la advertencia (al cerrarse con DismissModal)
         }
 
         public void SpawnEnemy()
@@ -419,7 +428,8 @@ namespace Piso13.Realidad
                 {
                     Enemy.InitNavigation(World);
                 }
-                Debug.Log("[P13RealidadGame] Enemigo spawneado en el mapa.");
+                Enemy.StartHunting(10.0f);
+                Debug.Log("[P13RealidadGame] Guardia spawneado tras la advertencia. Esperará 10 segundos antes de comenzar a moverse.");
             }
         }
 
@@ -681,9 +691,14 @@ namespace Piso13.Realidad
                 return;
             }
 
-            if (Phase == GamePhase.Lost)
+            if (Phase == GamePhase.Lost || Phase == GamePhase.DemoEnded)
             {
                 if (hand) hand.gameObject.SetActive(false);
+                if (Phase == GamePhase.DemoEnded)
+                {
+                    Cursor.lockState = CursorLockMode.None;
+                    Cursor.visible = true;
+                }
                 return;
             }
 
@@ -725,16 +740,34 @@ namespace Piso13.Realidad
                 }
             }
 
-            // Barra de Realidad: descenso equilibrado de 10% cada 25 segundos tras cerrar el modal (se pausa si está en llamada telefónica)
-            if (ModalDismissed && !IsPhoneCallActive)
+            // Secuencia final: Conteo de 5 segundos tras reportar todas las anomalías
+            if (EndingSequenceTriggered && !EndingPhoneRinging && !IsPhoneCallActive && Phase == GamePhase.Playing)
             {
-                realityTimer += dt;
-                if (realityTimer >= 2.5f)
+                endingPhoneTimer -= dt;
+                if (endingPhoneTimer <= 0f)
                 {
-                    realityTimer -= 2.5f;
+                    EndingPhoneRinging = true;
+                    ShowNotification("¡Escapa! La realidad ha empezado a deformarse... Contesta el teléfono", 15.0f);
+                    if (VintagePhone != null)
+                    {
+                        VintagePhone.StartEndingRinging();
+                    }
+                }
+            }
+
+            // Barra de Realidad: descenso equilibrado (el triple de rápido si suena la alarma final de escape; se congela al contestar)
+            if (ModalDismissed && !IsPhoneCallActive && !IsRealityFrozen)
+            {
+                float interval = EndingPhoneRinging ? (2.5f / 3.0f) : 2.5f;
+                realityTimer += dt;
+                if (realityTimer >= interval)
+                {
+                    realityTimer -= interval;
                     Sleep = Mathf.Max(0f, Sleep - 1.0f);
-                    // Al llegar a 0% de Realidad, el enemigo adquiere persecución implacable al 100% de exactitud y +50% de velocidad.
-                    // Solo captura al jugador por contacto físico cercano (<1.6m).
+                    if (Sleep <= 0f && Phase == GamePhase.Playing && !IsRealityFrozen)
+                    {
+                        TriggerCapture();
+                    }
                 }
             }
 
@@ -766,8 +799,8 @@ namespace Piso13.Realidad
             // Manejo de controles
             HandleInput(dt);
 
-            // Tick del enemigo (no se mueve hasta que termine la llamada)
-            if (Enemy != null && !IsPhoneCallActive)
+            // Tick del enemigo (solo si está activo en el mapa y no hay llamada activa)
+            if (Enemy != null && Enemy.gameObject.activeInHierarchy && !IsPhoneCallActive)
             {
                 Enemy.Tick(dt);
             }
@@ -821,15 +854,8 @@ namespace Piso13.Realidad
                 HumanMaskAnomaly.OnAlertModalDismissed();
             }
 
-            // Despertar al enemigo para que empiece a patrullar y cazar
-            if (Enemy != null)
-            {
-                if (!Enemy.gameObject.activeSelf)
-                {
-                    SpawnEnemy();
-                }
-                Enemy.StartHunting();
-            }
+            // Hacer spawn del guardia tras la advertencia (esperará 10s antes de moverse)
+            SpawnEnemy();
         }
 
         void HandleInput(float dt)
@@ -979,7 +1005,7 @@ namespace Piso13.Realidad
                 return;
             }
 
-            if (Cursor.lockState == CursorLockMode.Locked)
+            if (Cursor.lockState == CursorLockMode.Locked && !IsPlayerMovementFrozen)
             {
                 Yaw += mouseDelta.x * 2.0f;
                 Pitch = Mathf.Clamp(Pitch - mouseDelta.y * 2.0f, -65f, 65f);
@@ -993,6 +1019,7 @@ namespace Piso13.Realidad
                 toggleCrouch = false;
                 toggleReport = false;
                 toggleCCTV = false;
+                toggleInteract = false;
             }
 
             if (toggleFlash && !IsPlayerMovementFrozen)
@@ -1117,6 +1144,12 @@ namespace Piso13.Realidad
                     noiseDistance = 0f;
                     int stepNum = UnityEngine.Random.Range(0, 5);
                     Audio.Spatial("P13_PlayerStep_" + stepNum, PlayerPosition, Crouched ? 0.2f : IsSprinting ? 0.7f : 0.45f);
+
+                    // Alertas sonoras al enemigo por pisadas
+                    if (Enemy != null && !Crouched)
+                    {
+                        Enemy.AlertNoise(PlayerPosition, IsSprinting ? 0.75f : 0.35f);
+                    }
                 }
             }
 
@@ -1132,6 +1165,10 @@ namespace Piso13.Realidad
                 World.Revision++;
                 Audio.Spatial(World.DoorClosed ? "P13_Door_Latch" : "P13_Door_Open", P13RealidadRules.RK(0, 1.2f, 3f), 0.5f);
                 ShowNotification(World.DoorClosed ? "Puerta cerrada." : "Puerta abierta.");
+                if (Enemy != null)
+                {
+                    Enemy.AlertNoise(P13RealidadRules.RK(0, 0.8f, 2.35f), 0.6f);
+                }
             }
         }
 
@@ -1503,8 +1540,9 @@ namespace Piso13.Realidad
             if (CCTV && Data != null && Data.cameras != null && CameraIndex < Data.cameras.Length)
             {
                 var cam = Data.cameras[CameraIndex];
+                Vector3 target = (CameraIndex == 4 && isEndingCinematicActive) ? new Vector3(-6.712f, 0.35f, -6.003f) : cam.target;
                 View.transform.position = cam.position;
-                View.transform.rotation = Quaternion.LookRotation(cam.target - cam.position) * Quaternion.Euler(-cctvLook.y, cctvLook.x, 0);
+                View.transform.rotation = Quaternion.LookRotation(target - cam.position) * Quaternion.Euler(-cctvLook.y, cctvLook.x, 0);
                 if (hand) hand.gameObject.SetActive(false);
                 if (flashlight) flashlight.enabled = false;
                 return;
@@ -1570,6 +1608,151 @@ namespace Piso13.Realidad
                 // Si el modal ya se había cerrado antes de la llamada, el enemigo reanuda su caza desde el punto de spawn
                 Enemy.StartHunting();
             }
+        }
+
+        // =====================================================================
+        // MÉTODOS DE LA SECUENCIA FINAL DE LA DEMO
+        // =====================================================================
+
+        public void TriggerAllAnomaliesCompleted()
+        {
+            if (EndingSequenceTriggered) return;
+            EndingSequenceTriggered = true;
+            endingPhoneTimer = 5.0f;
+
+            // 1. Enemigo regresa al punto de spawn en paz y desactiva captura por contacto
+            if (Enemy != null)
+            {
+                Enemy.ReturnToSpawnPeaceful();
+            }
+
+            Debug.Log("[RealidadGame] ¡Todas las anomalías reportadas! El enemigo regresa al spawn. Temporizador de 5s iniciado.");
+        }
+
+        public void OnEndingCallAnswered()
+        {
+            IsPhoneCallActive = true;
+            IsPlayerMovementFrozen = true;
+            IsRealityFrozen = true; // La barra de realidad deja de bajar, inmunidad total a Game Over
+            EndingPhoneRinging = false;
+
+            // Ocultar mano y linterna mientras escucha en el teléfono vintage
+            if (hand) hand.gameObject.SetActive(false);
+            if (flashlight) flashlight.enabled = false;
+        }
+
+        public System.Collections.IEnumerator TransitionToCameraAfterDelay(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+
+            if (Phase == GamePhase.Playing)
+            {
+                isEndingCinematicActive = true;
+                CCTV = true;
+                CameraIndex = 4;
+                cctvLook = Vector2.zero;
+                ReplaceBedWithSleepingGuard();
+            }
+        }
+
+        public void ReplaceBedWithSleepingGuard()
+        {
+            var oldBed = GameObject.Find("Cama_Sola");
+            Vector3 pos = new Vector3(-6.712f, -0.014f, -6.003f);
+            Quaternion rot = Quaternion.Euler(0f, 0f, 0f);
+            Vector3 scale = new Vector3(2f, 2f, 2f);
+            Transform parent = (World != null && World.Root != null) ? World.Root : null;
+
+            if (oldBed != null)
+            {
+                pos = oldBed.transform.localPosition;
+                rot = oldBed.transform.localRotation;
+                scale = oldBed.transform.localScale;
+                parent = oldBed.transform.parent;
+                SafeDestroy(oldBed);
+            }
+
+            var guardPrefab = Resources.Load<GameObject>("Models/Guardia durmiendo");
+            if (guardPrefab != null)
+            {
+                var guardGo = Instantiate(guardPrefab);
+                guardGo.name = "Guardia_Durmiendo";
+                StripBlenderJunk(guardGo);
+
+                var matPart1 = Resources.Load<Material>("Models/Materials/M_GuardiaDurmiendo_Part1");
+                var matPart2 = Resources.Load<Material>("Models/Materials/M_GuardiaDurmiendo_Part2");
+
+                foreach (var r in guardGo.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (r.sharedMaterials.Length >= 2)
+                    {
+                        r.sharedMaterials = new Material[] { matPart1, matPart2 };
+                    }
+                    else if (r.sharedMaterials.Length == 1)
+                    {
+                        r.sharedMaterial = matPart2 != null ? matPart2 : matPart1;
+                    }
+                }
+
+                if (parent != null) guardGo.transform.SetParent(parent, false);
+                guardGo.transform.localPosition = pos;
+                guardGo.transform.localRotation = rot;
+                guardGo.transform.localScale = scale;
+
+                Debug.Log("[RealidadGame] Cama_Sola reemplazada por Guardia durmiendo con texturas PBR aplicadas.");
+            }
+            else
+            {
+                Debug.LogWarning("[RealidadGame] No se pudo cargar el prefab Models/Guardia durmiendo.");
+            }
+        }
+
+        public void OnEndingCallCompleted()
+        {
+            // 1. Corte inmediato a negro
+            Phase = GamePhase.DemoEnded;
+            CCTV = false;
+            IsPlayerMovementFrozen = true;
+            CursorLock(false);
+
+            // 2. Detener gameplay y pausar enemigo
+            if (Audio != null) Audio.SetGameplay(false);
+            if (Enemy != null) Enemy.Pause(true);
+
+            // 3. Reproducir respiración de zombie
+            PlayZombieBreathingSound();
+        }
+
+        void PlayZombieBreathingSound()
+        {
+            if (endingZombieAudio == null)
+            {
+                endingZombieAudio = gameObject.AddComponent<AudioSource>();
+                endingZombieAudio.playOnAwake = false;
+                endingZombieAudio.loop = true;
+                endingZombieAudio.spatialBlend = 0f; // Estéreo 2D directo
+                endingZombieAudio.volume = 0.9f;
+                endingZombieAudio.ignoreListenerPause = true;
+            }
+
+            var clip = Resources.Load<AudioClip>("Audio/freesound_community-zombie-breathing-70682");
+            if (clip != null)
+            {
+                endingZombieAudio.clip = clip;
+                endingZombieAudio.Play();
+            }
+        }
+
+        public void BackToMenuFromEnding()
+        {
+            if (endingZombieAudio != null)
+            {
+                endingZombieAudio.Stop();
+            }
+            AudioListener.pause = false;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            SceneManager.LoadScene(Turno0313.MenuKit.TitleScene);
         }
 
         public void SpawnClockPentagramAnomaly()

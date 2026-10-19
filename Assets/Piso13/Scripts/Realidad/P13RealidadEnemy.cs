@@ -38,6 +38,7 @@ namespace Piso13.Realidad
         public bool SeesPlayer = false;
         public float Alert = 0f;
         public float Speed = 0f;
+        public bool DisableProximityCapture { get; set; } = false;
 
         [Header("Sistema de Eventos del Mapa")]
         public bool HasActiveEvent = false;
@@ -105,7 +106,6 @@ namespace Piso13.Realidad
         string currentAnimPlaying = "";
 
         float clock = 0f;
-        float replanTimer = 0f;
         float decisionTimer = 5f;
         float doorTimer = 0f;
         float stepDistance = 0f;
@@ -262,15 +262,34 @@ namespace Piso13.Realidad
             }
         }
 
-        public void StartHunting()
+        public void ReturnToSpawnPeaceful()
+        {
+            DisableProximityCapture = true;
+            IsHunting = false;
+            State = RealidadEnemyState.Retreating;
+            destination = 8; // Almacén
+            memory = null;
+            confidence = 0f;
+            SeesPlayer = false;
+            Alert = 0f;
+            if (navigator != null)
+            {
+                navigator.SetDestination(destinations[8], Position, true);
+            }
+            Debug.Log("[RealidadEnemy] Todas las anomalías completadas. Enemigo regresa en paz al Almacén.");
+        }
+
+        public void StartHunting(float delayBeforeMoving = 10.0f)
         {
             IsHunting = true;
             State = RealidadEnemyState.Patrolling;
-            decisionTimer = 10.0f; // Pausa inicial prudente de 10s en el punto de spawn (Almacén)
+            decisionTimer = delayBeforeMoving; // Espera exactamente 10 segundos tras hacer spawn antes de moverse
             memory = null;
             confidence = 0f;
             Alert = 0f;
             SeesPlayer = false;
+            Speed = 0f;
+            PlayAnimation("idle");
             if (navigator != null) navigator.ClearPath();
         }
 
@@ -370,17 +389,6 @@ namespace Piso13.Realidad
             if (neighbors != null && location >= 0 && location < neighbors.Length)
             {
                 var choices = new List<int>(neighbors[location]);
-
-                // Durante los primeros 120s o mientras la realidad sea alta (>= 50%),
-                // evitar patrullar al nodo 4 (Archivo / Dormitorio donde despierta el jugador)
-                // para que el enemigo no vaya directo a su cama al inicio.
-                bool realityHigh = Game == null || Game.Sleep >= 50f;
-                bool earlyGame = clock < 120f;
-                if ((realityHigh || earlyGame) && choices.Count > 1)
-                {
-                    choices.Remove(4); // Excluir Archivo (dormitorio del jugador)
-                }
-
                 if (choices.Count > 0)
                 {
                     next = choices[UnityEngine.Random.Range(0, choices.Count)];
@@ -390,10 +398,6 @@ namespace Piso13.Realidad
             if (next < 0)
             {
                 next = UnityEngine.Random.Range(0, destinations.Length);
-                if ((Game == null || Game.Sleep >= 50f || clock < 120f) && next == 4)
-                {
-                    next = 8; // Reemplazar por Almacén si cayó en 4
-                }
             }
 
             destination = next;
@@ -421,18 +425,19 @@ namespace Piso13.Realidad
                 perception = new P13EnemyPerception(Game, navigation);
             }
 
-            var eye = Position + Vector3.up * 1.2f;
-            var playerTarget = Game != null ? (Game.PlayerPosition + Vector3.up * (Game.EyeHeight - 0.8f)) : Position;
+            var eye = Position + Vector3.up * 1.5f;
+            var playerTarget = Game != null ? (Game.PlayerPosition + Vector3.up * Mathf.Max(0.5f, Game.EyeHeight - 0.2f)) : Position;
             var delta = playerTarget - eye;
             var flat = new Vector3(delta.x, 0, delta.z);
             float distance = flat.magnitude;
             var forward = Quaternion.Euler(0, Yaw, 0) * Vector3.forward;
 
-            // Detección de visión directa
-            bool clearSight = Game != null && Game.World != null && Game.World.Clear(eye, playerTarget);
+            // Detección de visión directa al jugador (se comprueba a la cabeza o al torso)
+            Vector3 playerTorso = Game != null ? (Game.PlayerPosition + Vector3.up * 0.9f) : playerTarget;
+            bool clearSight = distance < 1.4f || (Game != null && Game.World != null && (Game.World.Clear(eye, playerTarget) || Game.World.Clear(eye, playerTorso)));
 
-            // Captura por proximidad física (contacto)
-            if (distance < 1.6f && clearSight)
+            // Captura por proximidad física (contacto directo)
+            if (!DisableProximityCapture && distance < 1.6f && clearSight)
             {
                 if (Game != null && Game.Phase == P13RealidadGame.GamePhase.Playing)
                 {
@@ -475,53 +480,45 @@ namespace Piso13.Realidad
             }
 
             // 2. Visión del jugador
-            // En la misma habitación el alcance es de 7.0m; a través de umbrales entre distintas salas se limita a 4.5m
+            bool flashlightOn = Game != null && Game.Flashlight;
+            bool isCrouched = Game != null && Game.Crouched;
+
             int playerRoom = Game != null ? P13RealidadRules.Room(Game.PlayerPosition) : 0;
             int enemyRoom = P13RealidadRules.Room(Position);
             bool sameRoom = playerRoom == enemyRoom;
-            float baseMaxDist = sameRoom ? 7.0f : 4.5f;
-            float maxVisionDist = (Game != null && Game.Crouched) ? Mathf.Min(baseMaxDist, 3.8f) : baseMaxDist;
-            float visionAngleCos = Mathf.Cos(Mathf.PI * ((Game != null && Game.Crouched) ? 0.22f : 0.28f));
-            SeesPlayer = distance < maxVisionDist &&
-                         (distance < 0.8f || Vector3.Dot(forward, flat.normalized) >= visionAngleCos) &&
-                         clearSight;
+
+            // Rango de visión reactivo y natural:
+            // - De pie: hasta 12.5m (o 18m con linterna o 15m en la misma sala)
+            // - Agachado: hasta 6.5m (o 11m con linterna)
+            float maxVisionDist = isCrouched
+                ? (flashlightOn ? 11.0f : 6.5f)
+                : (flashlightOn ? 18.0f : (sameRoom ? 15.0f : 12.5f));
+
+            // Cono de visión: 60° a cada lado (120° en total). A menos de 1.8m tiene visión periférica total
+            float visionAngleCos = Mathf.Cos((isCrouched ? 50f : 60f) * Mathf.Deg2Rad);
+            bool inAngle = distance < 1.8f || Vector3.Dot(forward, flat.normalized) >= visionAngleCos;
+
+            SeesPlayer = distance < maxVisionDist && inAngle && clearSight;
 
             if (SeesPlayer)
             {
-                // A mayor distancia, el enemigo tarda más en confirmar lo que vio
-                float confidenceRate;
-                if (distance < 2.0f)
-                {
-                    confidenceRate = 3.5f; // A quemarropa la reacción es inmediata
-                }
-                else if (distance < 4.5f)
-                {
-                    confidenceRate = (Game != null && Game.Crouched) ? 0.7f : 1.8f;
-                }
-                else
-                {
-                    confidenceRate = (Game != null && Game.Crouched) ? 0.35f : 0.9f;
-                }
-
+                // Velocidad de confirmación reactiva y rápida
+                float confidenceRate = (isCrouched && distance > 3.0f) ? 1.8f : 4.0f;
                 confidence = Mathf.Min(1f, confidence + dt * confidenceRate);
                 lastSeen = clock;
-                Alert = Mathf.Min(100f, Alert + dt * (Game != null && Game.Crouched ? 25f : 65f));
+                Alert = Mathf.Min(100f, Alert + dt * (isCrouched ? 45f : 95f));
 
-                // Solo fija la posición en memoria si superó el umbral de sospecha (0.35f) o si está muy cerca
-                if (confidence >= 0.35f || distance < 2.0f)
-                {
-                    memory = Game != null ? Game.PlayerPosition : Position;
-                }
+                // Guardar la posición en memoria de inmediato para perseguirlo
+                memory = Game != null ? Game.PlayerPosition : Position;
 
-                if (State != RealidadEnemyState.AtDoor && State != RealidadEnemyState.Retreating)
+                if (!DisableProximityCapture && State != RealidadEnemyState.AtDoor && State != RealidadEnemyState.Retreating)
                 {
-                    // Si confianza >= 0.85f o a quemarropa (< 2.5m): entra en cacería (Hunting)
-                    // Si confianza >= 0.35f: entra en sospecha/investigación (Investigating)
-                    if (confidence >= 0.85f || distance < 2.5f)
+                    // Si lo ve de cerca (< 4.5m), o lleva linterna encendida, o sospecha confirmada (>= 0.4f): inicia cacería directa
+                    if (confidence >= 0.4f || distance < 4.5f || flashlightOn)
                     {
                         State = RealidadEnemyState.Hunting;
                     }
-                    else if (confidence >= 0.35f && State != RealidadEnemyState.Hunting)
+                    else if (State != RealidadEnemyState.Hunting)
                     {
                         State = RealidadEnemyState.Investigating;
                     }
@@ -531,9 +528,10 @@ namespace Piso13.Realidad
             {
                 if (!forcePermanentHunt)
                 {
-                    confidence = Mathf.Max(0f, confidence - dt * 1.2f);
-                    Alert = Mathf.Max(0f, Alert - dt * 4f);
-                    if (State == RealidadEnemyState.Hunting && clock - lastSeen > 1.8f)
+                    confidence = Mathf.Max(0f, confidence - dt * 1.0f);
+                    Alert = Mathf.Max(0f, Alert - dt * 3.5f);
+                    // Mantiene la cacería hacia la última posición conocida durante 3.5 segundos antes de pasar a investigar
+                    if (State == RealidadEnemyState.Hunting && clock - lastSeen > 3.5f)
                     {
                         State = RealidadEnemyState.Investigating;
                         investigateWaitTimer = 2.0f;
@@ -702,15 +700,22 @@ namespace Piso13.Realidad
                     if (decisionTimer <= 0f)
                     {
                         location = destination >= 0 ? destination : location;
-                        decisionTimer = UnityEngine.Random.Range(3.5f, 6.0f);
+                        decisionTimer = UnityEngine.Random.Range(1.2f, 2.5f);
                         PickNextDestination();
                     }
                 }
             }
             else if (State == RealidadEnemyState.Retreating)
             {
-                if (navigator != null && navigator.ReachedDestination)
+                if (navigator != null && (navigator.ReachedDestination || Vector3.Distance(Position, destinations[8]) < 1.0f))
                 {
+                    if (DisableProximityCapture)
+                    {
+                        State = RealidadEnemyState.Dormant;
+                        Speed = 0f;
+                        PlayAnimation("idle");
+                        return;
+                    }
                     State = RealidadEnemyState.Patrolling;
                     decisionTimer = 1.5f;
                     PickNextDestination();
@@ -720,9 +725,12 @@ namespace Piso13.Realidad
             // =================================================================
             // CÁLCULO DE VELOCIDAD Y MOVIMIENTO
             // =================================================================
+            // Reducción del 20% al inicio del juego (Realidad alta o primeros minutos)
             float sleepNorm = Game != null ? Mathf.Clamp01(Game.Sleep / 100f) : 1f;
-            float baseSpeed = State == RealidadEnemyState.Hunting ? Mathf.Lerp(2.2f, 1.4f, sleepNorm) :
-                              State == RealidadEnemyState.Investigating ? 1.25f : 0.95f;
+            float initialSpeedFactor = (clock < 180f || sleepNorm >= 0.5f) ? 0.80f : Mathf.Lerp(1.0f, 0.80f, sleepNorm);
+
+            float baseSpeed = State == RealidadEnemyState.Hunting ? Mathf.Lerp(2.0f, 1.4f * 0.80f, sleepNorm) :
+                              State == RealidadEnemyState.Investigating ? (1.25f * initialSpeedFactor) : (0.95f * initialSpeedFactor);
 
             float desiredSpeed = baseSpeed;
             if (realitySpeedMultiplier > 1.0f)
