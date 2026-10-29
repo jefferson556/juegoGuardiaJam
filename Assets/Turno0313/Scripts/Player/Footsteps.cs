@@ -34,7 +34,7 @@ namespace Turno0313
                 i = (i + 1) % clips.Length;
             last = i;
             source.pitch = Random.Range(.94f, 1.06f);
-            source.PlayOneShot(clips[i], running ? volume * 1.3f : volume);
+            DemoSettingsRuntime.PlayEffect(source, clips[i], running ? volume * 1.3f : volume);
         }
     }
 }

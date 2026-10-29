@@ -253,10 +253,9 @@ namespace Piso13.Editor
             {
                 if (!Application.isBatchMode && !SessionState.GetBool("P13.Prepared.v1", false) && !EditorApplication.isPlayingOrWillChangePlaymode)
                 {
-                    Prepare();
                     SessionState.SetBool("P13.Prepared.v1", true);
                     if (string.IsNullOrEmpty(SceneManager.GetActiveScene().path) && !SceneManager.GetActiveScene().isDirty)
-                        EditorSceneManager.OpenScene(ScenePath);
+                        EditorSceneManager.OpenScene("Assets/Turno0313/Scenes/Turno_Piso13.unity");
                 }
             }
 

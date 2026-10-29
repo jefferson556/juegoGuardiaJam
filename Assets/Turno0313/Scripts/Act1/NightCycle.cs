@@ -132,7 +132,7 @@ namespace Turno0313
         void Play(AudioClip clip)
         {
             if (source && clip)
-                source.PlayOneShot(clip);
+                DemoSettingsRuntime.PlayEffect(source, clip);
         }
 
         // Plays a long clip for a few seconds and fades it out.

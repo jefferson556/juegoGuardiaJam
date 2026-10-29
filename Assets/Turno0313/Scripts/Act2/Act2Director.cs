@@ -97,7 +97,7 @@ namespace Turno0313
             if (reality)
                 reality.Paused = true;
             if (source && sinkClip)
-                source.PlayOneShot(sinkClip);
+                DemoSettingsRuntime.PlayEffect(source, sinkClip);
 
             float yaw = player ? player.Yaw : 0, pitch = player ? player.Pitch : 0;
             if (fade)

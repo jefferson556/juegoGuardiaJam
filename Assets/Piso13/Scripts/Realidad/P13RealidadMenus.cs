@@ -19,7 +19,9 @@ namespace Piso13.Realidad
         public P13RealidadEnding Ending { get; private set; }
 
         MenuKit kit;
-        bool wasLost, resumeNextFrame;
+        bool wasLost, resumeNextFrame, onTitle, confirmNew;
+        public bool OnTitle => onTitle;
+        public MenuKit Kit => kit;
 
         bool Lost => Game != null && Game.Phase == P13RealidadGame.GamePhase.Lost;
 
@@ -39,6 +41,7 @@ namespace Piso13.Realidad
 
         void OnDestroy()
         {
+            kit.Dispose();
             if (Paused)
             {
                 Time.timeScale = 1;
@@ -49,6 +52,13 @@ namespace Piso13.Realidad
         void Update()
         {
             kit.Tick();
+            if (kit.HandleOptionsBack()) return;
+            if (onTitle)
+            {
+                if (confirmNew && MenuKit.BackPressed()) { confirmNew = false; kit.Reset(); }
+                else kit.Navigate();
+                return;
+            }
             if (Game == null || (Ending != null && Ending.Running))
                 return;
 
@@ -101,20 +111,43 @@ namespace Piso13.Realidad
             Game.CursorLock(!paused);
         }
 
-        void MainMenu()
+        void MainMenu() => ShowTitle();
+        public void ShowTitle()
         {
-            SetPaused(false);
-            Game.LoadMainMenu();
+            SetPaused(true); onTitle = true; resumeNextFrame = false;
+            Game.enabled = false; Game.CursorLock(false); kit.Reset(); kit.Music(true);
+        }
+        public void ContinueDemo()
+        {
+            if (!onTitle || Lost) return;
+            onTitle = false; kit.Music(false); SetPaused(false);
+        }
+        void NewDemo()
+        {
+            GameMenus.StartOnNextLoad = true; Time.timeScale = 1; AudioListener.pause = false;
+            UnityEngine.SceneManagement.SceneManager.LoadScene(MenuKit.TitleScene);
         }
 
         void OnGUI()
         {
-            if (Game == null || (!Paused && !Lost))
+            if (Game == null || (!Paused && !Lost && !onTitle))
                 return;
             GUI.depth = -40;
             kit.Begin();
-            if (Lost)
-                EndScreen();
+            if (kit.OptionsOpen) kit.OptionsScreen();
+            else if (onTitle)
+            {
+                if (confirmNew)
+                {
+                    kit.Shade(1); float x = (kit.Width - 500) / 2;
+                    kit.Heading(new Rect(x, 230, 500, 80), "¿Iniciar de nuevo la demo?");
+                    kit.Text(new Rect(x, 310, 500, 60), "Se perderá el progreso de esta sesión.");
+                    kit.Button(new Rect(x, 405, 240, 48), "Cancelar", () => { confirmNew = false; kit.Reset(); });
+                    kit.Button(new Rect(x + 260, 405, 240, 48), "Iniciar demo", NewDemo, selected: true);
+                }
+                else kit.DemoTitle(!Lost, () => { confirmNew = true; kit.Reset(); }, ContinueDemo);
+            }
+            else if (Lost) EndScreen();
             else
                 kit.PauseScreen(() => SetPaused(false), MainMenu);
             kit.End();

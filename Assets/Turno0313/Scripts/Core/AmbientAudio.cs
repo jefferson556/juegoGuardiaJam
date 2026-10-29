@@ -24,6 +24,7 @@ namespace Turno0313
             source.loop = true;
             source.spatialBlend = 0;
             source.volume = volume;
+            DemoSettingsRuntime.Route(source, "Ambience");
             filter = gameObject.AddComponent<AudioLowPassFilter>();
         }
 

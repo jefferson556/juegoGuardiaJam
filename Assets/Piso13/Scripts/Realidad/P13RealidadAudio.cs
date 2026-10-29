@@ -62,6 +62,8 @@ namespace Piso13.Realidad
             o.transform.SetParent(transform);
             var a = o.AddComponent<AudioSource>();
             a.playOnAwake = false;
+            string channel = name == "Música" ? "Music" : name == "Diálogo" ? "Voices" : name.StartsWith("Lluvia") || name == "Ventilación" ? "Ambience" : "Effects";
+            Turno0313.DemoSettingsRuntime.Route(a, channel);
             a.spatialBlend = space ? 1 : 0;
             if (space)
             {

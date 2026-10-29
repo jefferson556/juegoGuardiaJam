@@ -877,21 +877,16 @@ namespace Piso13.Realidad
             var kb = Keyboard.current;
             var mouse = Mouse.current;
 
-            if (kb != null)
-            {
-                toggleEsc = kb.escapeKey.wasPressedThisFrame;
-                toggleFlash = kb.fKey.wasPressedThisFrame;
-                toggleCCTV = kb.vKey.wasPressedThisFrame;
-                toggleInteract = kb.eKey.wasPressedThisFrame;
-                toggleReport = kb.rKey.wasPressedThisFrame;
-                toggleCrouch = kb.leftCtrlKey.wasPressedThisFrame || kb.cKey.wasPressedThisFrame;
-                sprint = kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed;
-
-                if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) h += 1f;
-                if (kb.aKey.isPressed || kb.leftArrowKey.isPressed) h -= 1f;
-                if (kb.wKey.isPressed || kb.upArrowKey.isPressed) v += 1f;
-                if (kb.sKey.isPressed || kb.downArrowKey.isPressed) v -= 1f;
-            }
+            Turno0313.GameInput.Enable();
+            toggleEsc = Turno0313.GameInput.Pause.WasPressedThisFrame();
+            toggleFlash = Turno0313.GameInput.Flashlight.WasPressedThisFrame();
+            toggleCCTV = Turno0313.GameInput.Cameras.WasPressedThisFrame();
+            toggleInteract = Turno0313.GameInput.Interact.WasPressedThisFrame();
+            toggleReport = Turno0313.GameInput.Report.WasPressedThisFrame();
+            toggleCrouch = Turno0313.GameInput.Crouch.WasPressedThisFrame();
+            sprint = Turno0313.GameInput.Run.IsPressed();
+            var movement = Turno0313.GameInput.Move.ReadValue<Vector2>();
+            h = movement.x; v = movement.y;
 
             if (mouse != null)
             {
@@ -911,17 +906,9 @@ namespace Piso13.Realidad
             var pad = Gamepad.current;
             if (pad != null)
             {
-                var move = pad.leftStick.ReadValue();
-                h = Mathf.Clamp(h + move.x, -1f, 1f);
-                v = Mathf.Clamp(v + move.y, -1f, 1f);
                 var look = pad.rightStick.ReadValue();
                 // Mismas unidades que el ratón: unos 150°/s en horizontal y 110°/s en vertical
                 mouseDelta += new Vector2(look.x * 75f, look.y * 55f) * dt;
-                sprint |= pad.leftStickButton.isPressed;
-                toggleInteract |= pad.buttonSouth.wasPressedThisFrame;
-                toggleReport |= pad.buttonNorth.wasPressedThisFrame;
-                toggleCCTV |= pad.buttonWest.wasPressedThisFrame;
-                toggleCrouch |= pad.rightStickButton.wasPressedThisFrame;
                 toggleEsc |= CCTV && pad.buttonEast.wasPressedThisFrame;
                 clickToLock |= pad.buttonSouth.wasPressedThisFrame;
                 if (CCTV)
@@ -930,15 +917,9 @@ namespace Piso13.Realidad
                     if (pad.rightShoulder.wasPressedThisFrame || pad.dpad.right.wasPressedThisFrame) camStep++;
                     if (pad.leftShoulder.wasPressedThisFrame || pad.dpad.left.wasPressedThisFrame) camStep--;
                 }
-                else
-                    toggleFlash |= pad.rightShoulder.wasPressedThisFrame;
+                if (CCTV) toggleFlash = false;
             }
 
-            try
-            {
-                if (Input.GetKeyDown(KeyCode.V)) toggleCCTV = true;
-            }
-            catch {}
 #else
             toggleEsc = Input.GetKeyDown(KeyCode.Escape);
             toggleFlash = Input.GetKeyDown(KeyCode.F);
@@ -954,6 +935,8 @@ namespace Piso13.Realidad
             if (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow)) camStep++;
             if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow)) camStep--;
 #endif
+
+            mouseDelta *= Turno0313.DemoSettings.Current.sensitivity;
 
             if (clickToLock && Cursor.lockState != CursorLockMode.Locked && !CCTV && !ShowModal)
             {
@@ -1838,6 +1821,8 @@ namespace Piso13.Realidad
 
         public void LoadMainMenu()
         {
+            if (Menus != null && Phase == GamePhase.Playing) { Menus.ShowTitle(); return; }
+            Time.timeScale = 1; AudioListener.pause = false;
             CursorLock(false);
             if (Audio != null)
             {

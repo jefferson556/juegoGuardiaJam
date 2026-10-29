@@ -44,7 +44,7 @@ namespace Turno0313
             {
                 lastSecond = second;
                 if (source && tickClip)
-                    source.PlayOneShot(tickClip);
+                    DemoSettingsRuntime.PlayEffect(source, tickClip);
             }
         }
 

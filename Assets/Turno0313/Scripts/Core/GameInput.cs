@@ -15,6 +15,9 @@ namespace Turno0313
         public static readonly InputAction Pause = new InputAction("Pause", InputActionType.Button);
         public static readonly InputAction Notes = new InputAction("Notes", InputActionType.Button);
 
+        public static readonly InputAction Cameras = new InputAction("Cameras", InputActionType.Button);
+        public static readonly InputAction Crouch = new InputAction("Crouch", InputActionType.Button);
+        public static InputAction[] Actions => new[] { Move, LookMouse, LookStick, Run, Interact, Report, Flashlight, Pause, Notes, Cameras, Crouch };
         static bool ready;
 
         public static void Enable()
@@ -53,7 +56,17 @@ namespace Turno0313
             Notes.AddBinding("<Keyboard>/tab");
             Notes.AddBinding("<Gamepad>/select");
 
-            foreach (var action in new[] { Move, LookMouse, LookStick, Run, Interact, Report, Flashlight, Pause, Notes })
+            Cameras.AddBinding("<Keyboard>/v"); Cameras.AddBinding("<Gamepad>/buttonWest");
+            Crouch.AddBinding("<Keyboard>/c"); Crouch.AddBinding("<Gamepad>/rightStickPress");
+            Run.AddBinding("<Keyboard>/rightShift");
+            foreach (var saved in DemoSettings.Current.bindings)
+            {
+                if (saved == null) continue;
+                foreach (var action in Actions)
+                    if (action.name == saved.action && saved.index >= 0 && saved.index < action.bindings.Count && !action.bindings[saved.index].isComposite)
+                        action.ApplyBindingOverride(saved.index, saved.path);
+            }
+            foreach (var action in Actions)
                 action.Enable();
         }
     }

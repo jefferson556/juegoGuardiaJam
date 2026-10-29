@@ -4,25 +4,24 @@ using UnityEngine.SceneManagement;
 namespace Turno0313
 {
     // Title screen and pause menu (Esc / Start), with the Piso 13 look shared by every menu in the game (MenuKit).
-    // The night only starts when the player presses Jugar. Runs between PlayerController (0) and the screens that
-    // close with Esc (100), so Esc only pauses while the player is walking around.
-    [DefaultExecutionOrder(50)]
+    // The night starts on Iniciar demo. Runs before PlayerController so a menu press cannot
+    // also move the player; panels that own control keep their own Escape handling.
+    [DefaultExecutionOrder(-50)]
     public sealed class GameMenus : MonoBehaviour
     {
         [Tooltip("Mostrar la pantalla de título al empezar (apágalo para probar más rápido en el editor).")]
         [SerializeField] bool showTitle = true;
-        [SerializeField] string subtitle = "Something's Off";
-        [SerializeField] string tagline = "Eres el guardia de noche. El reloj marca 03:13 y no avanza.";
-
         public static GameMenus Instance { get; private set; }
         public bool OnTitle { get; private set; }
         public bool Paused { get; private set; }
 
-        // Tokens: InputPrompts shows the keys or the buttons of the gamepad in use.
-        const string Controls = "{Move} moverse  ·  {Look} mirar  ·  {Run} correr\n{Interact} interactuar  ·  {Report} reportar  ·  {Flashlight} linterna\n{Notes} bitácora  ·  {Pause} pausa";
-
         MenuKit kit;
-        bool autoActivate = true;
+        bool autoActivate = true, playerHadControl, confirmNew;
+        public bool HasSession { get; private set; }
+        public static bool StartOnNextLoad;
+        public MenuKit Kit => kit;
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetSession() { StartOnNextLoad = false; }
 
         void Awake()
         {
@@ -33,13 +32,17 @@ namespace Turno0313
         void Start()
         {
             if (showTitle)
+            {
                 ShowTitle();
+                if (StartOnNextLoad) { StartOnNextLoad = false; StartGame(); }
+            }
+            else HasSession = true;
         }
 
         void OnDestroy()
         {
-            if (Paused)
-                SetPaused(false);
+            kit.Dispose();
+            if (Paused || OnTitle) { Time.timeScale = 1; AudioListener.pause = false; }
             if (Instance == this)
                 Instance = null;
         }
@@ -47,10 +50,13 @@ namespace Turno0313
         void ShowTitle()
         {
             OnTitle = true;
+            Paused = false;
+            Time.timeScale = 0;
+            AudioListener.pause = true;
             kit.Reset();
             kit.Music(true);
             var manager = AnomalyManager.Instance;
-            if (manager)
+            if (manager && !HasSession)
             {
                 autoActivate = manager.AutoActivate;
                 manager.AutoActivate = false;
@@ -66,6 +72,9 @@ namespace Turno0313
             if (!OnTitle)
                 return;
             OnTitle = false;
+            HasSession = true;
+            Time.timeScale = 1;
+            AudioListener.pause = false;
             kit.Music(false);
             var manager = AnomalyManager.Instance;
             if (manager)
@@ -83,25 +92,49 @@ namespace Turno0313
         {
             if (Paused == paused)
                 return;
+            if (OnTitle) return;
+            if (paused) playerHadControl = PlayerController.Instance && PlayerController.Instance.ControlEnabled;
             Paused = paused;
             kit.Reset();
             Time.timeScale = paused ? 0 : 1;
             AudioListener.pause = paused;
             if (PlayerController.Instance)
-                PlayerController.Instance.SetControl(!paused);
+                PlayerController.Instance.SetControl(!paused && playerHadControl);
         }
 
         public void BackToTitle()
         {
-            SetPaused(false);
-            SceneManager.LoadScene(MenuKit.TitleScene);
+            if (!OnTitle)
+            {
+                if (!Paused) playerHadControl = PlayerController.Instance && PlayerController.Instance.ControlEnabled;
+                ShowTitle();
+            }
         }
 
+        public void ContinueDemo()
+        {
+            if (!OnTitle || !HasSession) return;
+            OnTitle = Paused = false; kit.Reset(); kit.Music(false);
+            Time.timeScale = 1; AudioListener.pause = false;
+            if (PlayerController.Instance) PlayerController.Instance.SetControl(playerHadControl);
+        }
+        public void RequestNewDemo()
+        {
+            if (HasSession) { confirmNew = true; kit.Reset(); }
+            else StartGame();
+        }
+        public void RestartDemo()
+        {
+            StartOnNextLoad = true; Time.timeScale = 1; AudioListener.pause = false;
+            SceneManager.LoadScene(MenuKit.TitleScene);
+        }
         public void Quit() => MenuKit.Quit();
 
         void Update()
         {
             kit.Tick();
+            if (kit.HandleOptionsBack()) return;
+            if (confirmNew && MenuKit.BackPressed()) { confirmNew = false; kit.Reset(); return; }
             if (!OnTitle && !Paused)
             {
                 // Esc only pauses while nobody else (panel, cameras, a scene) has the controls.
@@ -126,8 +159,8 @@ namespace Turno0313
                 return;
             GUI.depth = -40;
             kit.Begin();
-            if (OnTitle)
-                TitleScreen();
+            if (kit.OptionsOpen) kit.OptionsScreen();
+            else if (OnTitle) TitleScreen();
             else
                 kit.PauseScreen(() => SetPaused(false), BackToTitle);
             kit.End();
@@ -135,13 +168,15 @@ namespace Turno0313
 
         void TitleScreen()
         {
-            kit.CoverWithPanel(550);
-            kit.Title(new Rect(70, 90, 460, 90), "TURNO 03:13", MenuKit.TitleRed);
-            kit.Heading(new Rect(74, 178, 430, 32), subtitle);
-            kit.Text(new Rect(74, 214, 430, 60), tagline);
-            kit.Button(new Rect(70, 300, 390, 48), "Jugar", StartGame);
-            kit.Button(new Rect(70, 362, 390, 48), "Salir", Quit);
-            kit.Prompts(new Rect(74, 612, 470, 80), Controls);
+            if (confirmNew)
+            {
+                kit.Shade(1); float x = (kit.Width - 500) / 2;
+                kit.Heading(new Rect(x, 230, 500, 80), "¿Iniciar de nuevo la demo?");
+                kit.Text(new Rect(x, 310, 500, 60), "Se perderá el progreso de esta sesión.");
+                kit.Button(new Rect(x, 405, 240, 48), "Cancelar", () => { confirmNew = false; kit.Reset(); });
+                kit.Button(new Rect(x + 260, 405, 240, 48), "Iniciar demo", RestartDemo, selected: true);
+            }
+            else kit.DemoTitle(HasSession, RequestNewDemo, ContinueDemo);
         }
     }
 }

@@ -1,0 +1,5 @@
+Independent C# compiler (Unity 6000.6.4f1 references), exit code 0.
+Assets/Piso13/Scripts/P13Game.cs(57,18): warning CS0618: 'Object.FindFirstObjectByType<T>()' está obsoleto: 'FindFirstObjectByType has been deprecated because it relies on instance ID ordering. Use FindAnyObjectByType instead, which does not depend on ordering.'
+Assets/Piso13/Scripts/Realidad/P13RealidadAudio.cs(18,39): warning CS0169: El campo 'P13RealidadAudio.rainTarget' nunca se usa
+Assets/Piso13/Scripts/Realidad/P13RealidadAudio.cs(18,51): warning CS0169: El campo 'P13RealidadAudio.stormClock' nunca se usa
+Assets/Piso13/Scripts/Realidad/P13RealidadAudio.cs(18,27): warning CS0169: El campo 'P13RealidadAudio.rainVolume' nunca se usa

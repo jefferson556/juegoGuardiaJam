@@ -61,18 +61,16 @@ namespace Turno0313
             float dt = Time.deltaTime;
             if (controlEnabled)
             {
-                if (GameInput.Pause.WasPressedThisFrame())
-                    CaptureCursor(Cursor.lockState != CursorLockMode.Locked);
-                // Click, or the gamepad's A / ✕, takes the cursor back (after alt-tab, for instance).
-                else if (Cursor.lockState != CursorLockMode.Locked
+                // The menu owns Escape. A click takes the cursor back after alt-tab.
+                if (Cursor.lockState != CursorLockMode.Locked
                          && ((Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) || (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame)))
                     CaptureCursor(true);
             }
 
             if (HasControl)
             {
-                var mouse = GameInput.LookMouse.ReadValue<Vector2>() * mouseSensitivity;
-                var stick = GameInput.LookStick.ReadValue<Vector2>() * (stickSensitivity * dt);
+                var mouse = GameInput.LookMouse.ReadValue<Vector2>() * mouseSensitivity * DemoSettings.Current.sensitivity;
+                var stick = GameInput.LookStick.ReadValue<Vector2>() * (stickSensitivity * dt * DemoSettings.Current.sensitivity);
                 yaw += mouse.x + stick.x;
                 pitch = Mathf.Clamp(pitch - mouse.y - stick.y, -maxPitch, maxPitch);
             }

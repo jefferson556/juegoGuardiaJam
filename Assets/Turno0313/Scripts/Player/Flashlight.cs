@@ -25,7 +25,7 @@ namespace Turno0313
             {
                 Set(!On);
                 if (source && toggleClip)
-                    source.PlayOneShot(toggleClip);
+                    DemoSettingsRuntime.PlayEffect(source, toggleClip);
             }
         }
 

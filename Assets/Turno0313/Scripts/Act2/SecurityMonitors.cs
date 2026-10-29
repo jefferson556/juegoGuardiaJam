@@ -195,7 +195,7 @@ namespace Turno0313
             feedbackColor = color;
             feedbackUntil = Time.time + 2.5f;
             if (source && clip)
-                source.PlayOneShot(clip);
+                DemoSettingsRuntime.PlayEffect(source, clip);
         }
 
         void Update()

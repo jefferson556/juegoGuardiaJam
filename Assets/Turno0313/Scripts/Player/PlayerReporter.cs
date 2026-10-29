@@ -47,7 +47,7 @@ namespace Turno0313
         void Play(AudioClip clip)
         {
             if (feedback && clip)
-                feedback.PlayOneShot(clip);
+                DemoSettingsRuntime.PlayEffect(feedback, clip);
         }
     }
 }

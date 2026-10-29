@@ -76,6 +76,7 @@ namespace Piso13.Realidad
             callSource.loop = false;
             callSource.spatialBlend = 0.25f; // Semiespacial para claridad
             callSource.volume = 1.0f;
+            Turno0313.DemoSettingsRuntime.Route(callSource, "Voices");
         }
 
         void Update()

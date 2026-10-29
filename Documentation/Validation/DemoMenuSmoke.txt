@@ -1,0 +1,14 @@
+2026-10-29T23:39:41.6238970Z
+Unity 6000.5.5f1
+FAIL — 0 checks; stage 0
+System.Exception: ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than the size of the collection.
+Parameter name: index
+System.Collections.Generic.List`1[T].get_Item (System.Int32 index) (at <299d5c9ae27b4d27af003e5f456f4b13>:0)
+UnityEditor.Search.SearchDatabase+<EnumerateAll>d__76.MoveNext () (at /Users/bokken/build/output/unity/unity/Modules/QuickSearch/Editor/Indexing/SearchDatabase.cs:347)
+System.Linq.Enumerable.TryGetFirst[TSource] (System.Collections.Generic.IEnumerable`1[T] source, System.Boolean& found) (at <cb951819652d428c85bd75cb224d8506>:0)
+System.Linq.Enumerable.First[TSource] (System.Collections.Generic.IEnumerable`1[T] source) (at <cb951819652d428c85bd75cb224d8506>:0)
+UnityEditor.Search.SearchDatabase.GetDefaultSearchDatabase () (at /Users/bokken/build/output/unity/unity/Modules/QuickSearch/Editor/Indexing/SearchDatabase.cs:321)
+UnityEditor.Search.SearchInit.IndexationOnStartup () (at /Users/bokken/build/output/unity/unity/Modules/QuickSearch/Editor/SearchInit.cs:109)
+UnityEditor.EditorApplication.Internal_CallDelayFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:418)
+
+  at Piso13.Editor.DemoMenuSmokeTests.Tick () [0x00015] in /Users/mac/Documents/Codex/2026-10-29/referenced-chatgpt-conversation-this-is-an/outputs/Piso13-Dev/Assets/Piso13/Editor/DemoMenuSmokeTests.cs:69 

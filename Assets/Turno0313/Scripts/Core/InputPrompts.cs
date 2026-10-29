@@ -18,7 +18,8 @@ namespace Turno0313
             PlayStation
         }
 
-        public static Scheme Current { get; private set; } = Scheme.Keyboard;
+        static Scheme detected = Scheme.Keyboard;
+        public static Scheme Current => detected == Scheme.Keyboard ? Scheme.Keyboard : DemoSettings.Current.symbols == 1 ? Scheme.PlayStation : DemoSettings.Current.symbols == 2 ? Scheme.Xbox : detected;
         public static bool UsingGamepad => Current != Scheme.Keyboard;
 
         public static string Pick(string keyboard, string gamepad) => UsingGamepad ? gamepad : keyboard;
@@ -68,6 +69,15 @@ namespace Turno0313
             return text;
         }
 
+        static string KeyboardLabel(string token, string fallback)
+        {
+            GameInput.Enable();
+            if (token == "Move") return string.Join("/", new[] { GameInput.Move.GetBindingDisplayString(1), GameInput.Move.GetBindingDisplayString(2), GameInput.Move.GetBindingDisplayString(3), GameInput.Move.GetBindingDisplayString(4) });
+            foreach (var action in GameInput.Actions)
+                if (action.name == token && action.bindings.Count > 0) return action.GetBindingDisplayString(0);
+            return fallback;
+        }
+
         // ---- Which device is in use ----
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -87,7 +97,7 @@ namespace Turno0313
                 foreach (var pad in Gamepad.all)
                     if (pad.wasUpdatedThisFrame && Used(pad))
                     {
-                        Current = pad is DualShockGamepad ? Scheme.PlayStation : Scheme.Xbox;
+                        detected = pad is DualShockGamepad ? Scheme.PlayStation : Scheme.Xbox;
                         return;
                     }
 
@@ -95,7 +105,7 @@ namespace Turno0313
                 var mouse = Mouse.current;
                 if ((keyboard != null && keyboard.anyKey.wasPressedThisFrame)
                     || (mouse != null && (mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame || mouse.delta.ReadValue().sqrMagnitude > 25)))
-                    Current = Scheme.Keyboard;
+                    detected = Scheme.Keyboard;
             }
 
             // A real press or a firm stick push (not the drift of a resting stick).
@@ -217,7 +227,7 @@ namespace Turno0313
                     if (Current == Scheme.PlayStation && glyph.icon != Icon.None)
                         segments.Add(new Segment(null, IconTexture(glyph.icon)));
                     else
-                        segments.Add(new Segment("[" + (Current == Scheme.Keyboard ? glyph.keyboard : Current == Scheme.Xbox ? glyph.xbox : glyph.ps) + "]", null));
+                        segments.Add(new Segment("[" + (Current == Scheme.Keyboard ? KeyboardLabel(token, glyph.keyboard) : Current == Scheme.Xbox ? glyph.xbox : glyph.ps) + "]", null));
                 }
                 else
                     segments.Add(new Segment(line.Substring(open, close - open + 1), null));

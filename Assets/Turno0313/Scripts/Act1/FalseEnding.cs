@@ -201,6 +201,7 @@ namespace Turno0313
             {
                 music.clip = creditsMusic;
                 music.volume = .8f;
+                DemoSettingsRuntime.Route(music, "Music");
                 music.pitch = 1;
                 music.Play();
             }

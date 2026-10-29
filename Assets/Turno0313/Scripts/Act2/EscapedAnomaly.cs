@@ -155,7 +155,7 @@ namespace Turno0313
             if (monitors)
                 monitors.Flash(cameras[to]);
             if (source)
-                source.PlayOneShot(jumpClip ? jumpClip : (jumpClip = SynthAudio.Static(.45f, .5f)));
+                DemoSettingsRuntime.PlayEffect(source, jumpClip ? jumpClip : (jumpClip = SynthAudio.Static(.45f, .5f)));
             nextJump = Time.time + jumpEvery;
             Jumped?.Invoke(cameras[to]);
         }
