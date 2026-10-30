@@ -20,6 +20,7 @@ namespace Piso13.Editor
         static float frozen;
         static Vector3 position;
         static string failure;
+        static string serviceWarnings;
         static DemoMenuSmokeTests()
         {
             EditorApplication.delayCall += () =>
@@ -63,7 +64,15 @@ namespace Piso13.Editor
             EditorApplication.EnterPlaymode();
         }
         static void Log(string message, string stack, LogType type)
-        { if (type == LogType.Error || type == LogType.Exception || type == LogType.Assert) failure = message + "\n" + stack; }
+        {
+            if (type != LogType.Error && type != LogType.Exception && type != LogType.Assert) return;
+            // Unity account token exchange is an editor service, independent of offline gameplay.
+            // Keep it in the report, while all other errors still fail the smoke test.
+            if (message.StartsWith("UnityConnectWebRequestException: Token Exchange") &&
+                stack.Contains("UnityEditor.Connect.") && !stack.Contains("Assets/"))
+            { serviceWarnings += message + "\n"; return; }
+            failure = message + "\n" + stack;
+        }
         static void Check(bool condition, string message) { checks++; if (!condition) throw new Exception(message); }
         static void Next() { stage++; since = EditorApplication.timeSinceStartup; }
         static void Tick()
@@ -189,7 +198,7 @@ namespace Piso13.Editor
             EditorSettings.enterPlayModeOptionsEnabled = SessionState.GetBool(Key + "EnterOptions", false);
             Time.timeScale = 1; AudioListener.pause = false;
             Directory.CreateDirectory("Documentation/Validation");
-            string report = DateTime.UtcNow.ToString("O") + "\nUnity " + Application.unityVersion + "\n" + (error == null ? "PASS" : "FAIL") + " — " + checks + " checks; stage " + stage + "\n" + error;
+            string report = DateTime.UtcNow.ToString("O") + "\nUnity " + Application.unityVersion + "\n" + (error == null ? "PASS" : "FAIL") + " — " + checks + " checks; stage " + stage + "\n" + error + (string.IsNullOrEmpty(serviceWarnings) ? "" : "\nEditor service warnings (not gameplay):\n" + serviceWarnings);
             File.WriteAllText("Documentation/Validation/DemoMenuSmoke.txt", report);
             Debug.Log(report); EditorApplication.isPlaying = false;
         }

@@ -27,6 +27,14 @@ Las escenas de producción y su orden en Build Settings se conservan. La herrami
 4. Para las comprobaciones automáticas, detener Play y ejecutar **Turno 03:13 → Pruebas → Verificar menu demo**.
 5. Consultar `Documentation/Validation/DemoMenuSmoke.txt`. Solo un informe **PASS** confirma que terminó la prueba. Los informes de compilación C# independiente se encuentran en `Documentation/Validation/Menu/`; no equivalen a una prueba de juego completa.
 
-Prueba manual pendiente de completar cuando corresponda: verificar el hover con ratón, navegar los tres paneles, reasignar un control, iniciar, pausar, volver al menú, continuar sin perder posición, reiniciar con confirmación y cerrar una aplicación compilada con Salir. Probar también resolución/pantalla completa y un mando físico en la plataforma de destino.
+## Resultado de la validación — 30 de octubre de 2026
+
+Unity **6000.5.5f1** completó el recorrido automático con **PASS: 40 comprobaciones, etapa 12**. Se comprobaron el menú inicial, la aparición de Continuar, inicio y reinicio, pausa, conservación de posición, opciones, volumen por canales, guardado de ajustes y reasignación/restauración de controles, tanto en Turno_Piso13 como en Piso13 Realidad. Las capturas están en `Documentation/Validation/`.
+
+Durante la prueba apareció un error del servicio de cuenta de Unity (`UnityConnectWebRequestException`, intercambio de token). Se registra en el informe separado de los fallos del juego; no se declara reparado. Cualquier otro error o excepción sigue haciendo fallar la prueba.
+
+La compilación independiente de los seis ensamblados también terminó sin errores; sus advertencias existentes se conservan en los informes.
+
+Validación manual complementaria en la plataforma de destino: verificar el hover con ratón, navegar los tres paneles, reasignar un control, iniciar, pausar, volver al menú, continuar sin perder posición, reiniciar con confirmación y cerrar una aplicación compilada con Salir. Probar también resolución/pantalla completa y un mando físico en la plataforma de destino.
 
 El ZIP es un proyecto fuente de Unity; no es una aplicación compilada. No contiene `Library`, `Temp`, `.git` ni archivos de autenticación. La copia local anterior y su ZIP se conservan por separado.
