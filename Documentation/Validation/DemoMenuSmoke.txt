@@ -1,6 +1,3 @@
-2026-10-30T14:18:59.9432030Z
+2026-10-30T21:18:25.0186790Z
 Unity 6000.5.5f1
 PASS — 40 checks; stage 12
-
-Editor service warnings (not gameplay):
-UnityConnectWebRequestException: Token Exchange failed due a failure with the web request.

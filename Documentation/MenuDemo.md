@@ -1,6 +1,6 @@
 # Menú de la demo Piso 13
 
-El menú de producción usa la portada existente, fondo oscuro, texto blanco, botones rojos y un rojo más brillante al pasar el ratón o seleccionar con teclado/mando. La referencia es `VIDEO-2026-10-16-18-59-12.mov`; las pestañas y ajustes también se contrastaron con el código del menú original de Piso 13.
+El menú de producción usa la portada existente, fondo negro, texto blanco, botones de rojo oscuro y un rojo más brillante al pasar el ratón o seleccionar con teclado/mando. La referencia es `VIDEO-2026-10-16-18-59-12.mov`; las pestañas y ajustes también se contrastaron con el código del menú original de Piso 13.
 
 ## Comportamiento
 
@@ -31,7 +31,7 @@ Las escenas de producción y su orden en Build Settings se conservan. La herrami
 
 Unity **6000.5.5f1** completó el recorrido automático con **PASS: 40 comprobaciones, etapa 12**. Se comprobaron el menú inicial, la aparición de Continuar, inicio y reinicio, pausa, conservación de posición, opciones, volumen por canales, guardado de ajustes y reasignación/restauración de controles, tanto en Turno_Piso13 como en Piso13 Realidad. Las capturas están en `Documentation/Validation/`.
 
-Durante la prueba apareció un error del servicio de cuenta de Unity (`UnityConnectWebRequestException`, intercambio de token). Se registra en el informe separado de los fallos del juego; no se declara reparado. Cualquier otro error o excepción sigue haciendo fallar la prueba.
+En un intento anterior apareció un error del servicio de cuenta de Unity (`UnityConnectWebRequestException`, intercambio de token). Se conservó ese diagnóstico separado de los fallos del juego. El recorrido final con la corrección de color no registró ese error; no se declara reparado el servicio externo. Cualquier otro error o excepción sigue haciendo fallar la prueba.
 
 La compilación independiente de los seis ensamblados también terminó sin errores; sus advertencias existentes se conservan en los informes.
 

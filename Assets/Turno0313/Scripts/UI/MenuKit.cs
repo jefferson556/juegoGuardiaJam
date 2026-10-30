@@ -26,7 +26,7 @@ namespace Turno0313
         readonly AudioClip hover, confirm;
         readonly List<Action> commands = new List<Action>();
         readonly List<Action<int>> adjustments = new List<Action<int>>();
-        public static readonly Color ButtonRed = new Color(.56f, .055f, .085f);
+        public static readonly Color ButtonRed = new Color(.30f, .025f, .02f);
         public static readonly Color HoverRed = new Color(.88f, .09f, .13f);
         public readonly List<string> VisibleLabels = new List<string>();
         bool keyboardFocus, deferredClick;
@@ -233,9 +233,13 @@ namespace Turno0313
             button.normal.textColor = Ink;
         }
 
+        // Palette values describe the displayed sRGB colors. IMGUI textured fills
+        // are converted again by the linear renderer, so supply linear values there.
+        static Color FillColor(Color color) => QualitySettings.activeColorSpace == ColorSpace.Linear ? color.linear : color;
+
         public static void Panel(Rect r, float alpha)
         {
-            GUI.color = new Color(.018f, .012f, .016f, alpha);
+            GUI.color = FillColor(new Color(.025f, .018f, .022f, alpha));
             GUI.DrawTexture(r, Texture2D.whiteTexture);
             GUI.color = Color.white;
         }
@@ -295,12 +299,12 @@ namespace Turno0313
             var old = GUI.color;
             if (hot)
             {
-                GUI.color = new Color(HoverRed.r, HoverRed.g, HoverRed.b, .18f);
+                GUI.color = FillColor(new Color(HoverRed.r, HoverRed.g, HoverRed.b, .18f));
                 GUI.DrawTexture(new Rect(r.x - 3, r.y - 3, r.width + 6, r.height + 6), Texture2D.whiteTexture);
             }
-            GUI.color = hot ? HoverRed : selected ? ButtonRed : new Color(.055f, .045f, .05f, .95f);
+            GUI.color = FillColor(hot ? HoverRed : selected ? ButtonRed : new Color(.055f, .045f, .05f, .95f));
             GUI.DrawTexture(r, Texture2D.whiteTexture);
-            GUI.color = hot ? new Color(1, .65f, .65f) : selected ? Accent : new Color(.25f, .23f, .24f);
+            GUI.color = FillColor(hot ? new Color(1, .65f, .65f) : selected ? Accent : new Color(.25f, .23f, .24f));
             Border(r);
             GUI.color = old;
             GUI.Label(r, text.ToUpperInvariant(), button);
@@ -328,7 +332,9 @@ namespace Turno0313
         }
         public void DemoTitle(bool canContinue, Action start, Action resume)
         {
-            Shade(1);
+            GUI.color = Color.black;
+            GUI.DrawTexture(new Rect(0, 0, Width, Height), Texture2D.whiteTexture);
+            GUI.color = Color.white;
             float size = Mathf.Min(480, Width * .75f);
             if (cover) GUI.DrawTexture(new Rect((Width - size) / 2, -20, size, size), cover, ScaleMode.ScaleToFit);
             float width = Mathf.Min(330, Width - 40), x = (Width - width) / 2, y = 420;

@@ -90,7 +90,7 @@ namespace Turno0313
             Shade(1);
             float w = Mathf.Min(860, Width - 40), x = (Width - w) / 2;
             var panel = new Rect(x, 35, w, 650);
-            GUI.color = Accent; Border(panel); GUI.color = Color.white;
+            GUI.color = FillColor(Accent); Border(panel); GUI.color = Color.white;
             Heading(new Rect(x + 25, 50, w - 50, 40), "O P C I O N E S");
             string[] tabs = { "Controles", "Video", "Sonido" };
             for (int i = 0; i < tabs.Length; i++)
@@ -140,7 +140,7 @@ namespace Turno0313
             var s = DemoSettings.Current;
             for (int i = 0; i < 8; i++)
             {
-                GUI.color = new Color(i / 7f, i / 7f, i / 7f);
+                GUI.color = FillColor(new Color(i / 7f, i / 7f, i / 7f));
                 GUI.DrawTexture(new Rect(x + w * i / 8, 172, w / 8, 26), Texture2D.whiteTexture);
             }
             GUI.color = Color.white;
@@ -168,7 +168,7 @@ namespace Turno0313
             string amount = signed ? (value * 100).ToString("+0;-0;0") : Mathf.RoundToInt(value * 100) + "%";
             Button(new Rect(r.x, r.y, r.width * .47f, r.height), label + "  " + amount, () => {},
                 d => change(Mathf.Clamp(value + d * (hi - lo) / 20, lo, hi)));
-            var old = GUI.color; GUI.color = HoverRed;
+            var old = GUI.color; GUI.color = FillColor(HoverRed);
             float next = GUI.HorizontalSlider(new Rect(r.x + r.width * .5f, r.y + r.height / 2 - 6, r.width * .48f, 22), value, lo, hi);
             GUI.color = old;
             if (!Mathf.Approximately(next, value)) change(next);
