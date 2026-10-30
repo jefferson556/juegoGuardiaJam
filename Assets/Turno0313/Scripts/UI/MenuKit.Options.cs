@@ -168,8 +168,21 @@ namespace Turno0313
             string amount = signed ? (value * 100).ToString("+0;-0;0") : Mathf.RoundToInt(value * 100) + "%";
             Button(new Rect(r.x, r.y, r.width * .47f, r.height), label + "  " + amount, () => {},
                 d => change(Mathf.Clamp(value + d * (hi - lo) / 20, lo, hi)));
-            var old = GUI.color; GUI.color = FillColor(HoverRed);
-            float next = GUI.HorizontalSlider(new Rect(r.x + r.width * .5f, r.y + r.height / 2 - 6, r.width * .48f, 22), value, lo, hi);
+            var old = GUI.color;
+            var slider = new Rect(r.x + r.width * .5f, r.y + r.height / 2 - 6, r.width * .48f, 22);
+            // Keep the native drag/key behavior, then draw the reference's visible
+            // gray rail, red fill and white handle over the dark editor skin.
+            float next = GUI.HorizontalSlider(slider, value, lo, hi);
+            GUI.color = FillColor(new Color(.025f, .018f, .022f));
+            GUI.DrawTexture(slider, Texture2D.whiteTexture);
+            var rail = new Rect(slider.x + 7, slider.y + 5, slider.width - 14, 4);
+            GUI.color = FillColor(new Color(.28f, .28f, .28f));
+            GUI.DrawTexture(rail, Texture2D.whiteTexture);
+            float progress = Mathf.InverseLerp(lo, hi, next);
+            GUI.color = FillColor(HoverRed);
+            GUI.DrawTexture(new Rect(rail.x, rail.y, rail.width * progress, rail.height), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+            GUI.DrawTexture(new Rect(rail.x + rail.width * progress - 5, rail.y - 3, 10, 10), Texture2D.whiteTexture);
             GUI.color = old;
             if (!Mathf.Approximately(next, value)) change(next);
         }
