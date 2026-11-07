@@ -130,12 +130,14 @@ namespace Turno0313.EditorTools
             lightGo.transform.localPosition = new Vector3(.18f, -.16f, .55f);
             var spot = lightGo.AddComponent<Light>();
             spot.type = LightType.Spot;
-            spot.range = 16f;
-            spot.spotAngle = 52f;
-            spot.innerSpotAngle = 22f;
-            spot.intensity = 5f;
+            spot.range = 24f;
+            spot.spotAngle = 62f;
+            spot.innerSpotAngle = 32f;
+            spot.intensity = 12f;
             spot.color = new Color(1f, .95f, .87f);
             spot.shadows = LightShadows.Soft;
+            spot.shadowBias = .025f;
+            spot.shadowNormalBias = .08f;
 
             var audio = go.AddComponent<AudioSource>();
             audio.playOnAwake = false;

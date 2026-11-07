@@ -322,7 +322,7 @@ namespace Piso13.Realidad
                 officeDoorLight.transform.SetParent(World.Root);
                 officeDoorLight.transform.position = P13RealidadRules.RK(0, 2.7f, 3.6f);
                 officeDoorLight.range = 8.5f;
-                officeDoorLight.intensity = 2.5f;
+                officeDoorLight.intensity = .65f;
                 officeDoorLight.type = LightType.Point;
                 officeDoorLight.color = new Color(1f, 0.96f, 0.9f);
             }
@@ -356,12 +356,14 @@ namespace Piso13.Realidad
             flashGo.transform.localPosition = new Vector3(0.18f, -0.16f, 0.55f);
             flashlight = flashGo.AddComponent<Light>();
             flashlight.type = LightType.Spot;
-            flashlight.range = 22f;
-            flashlight.spotAngle = 55f;
-            flashlight.innerSpotAngle = 24f;
-            flashlight.intensity = 5f;
+            flashlight.range = 24f;
+            flashlight.spotAngle = 62f;
+            flashlight.innerSpotAngle = 32f;
+            flashlight.intensity = 12f;
             flashlight.color = new Color(1f, 0.95f, 0.87f);
             flashlight.shadows = LightShadows.Soft;
+            flashlight.shadowBias = .025f;
+            flashlight.shadowNormalBias = .08f;
             flashlight.enabled = Flashlight;
 
             // Mano con linterna
@@ -373,6 +375,9 @@ namespace Piso13.Realidad
                     hand = handObj.transform;
                     hand.localPosition = Vector3.zero;
                     hand.localRotation = Quaternion.identity;
+                    // The first-person mesh surrounds the light; it must not block its beam.
+                    foreach (var renderer in hand.GetComponentsInChildren<Renderer>(true))
+                        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 }
             }
             catch (Exception ex)

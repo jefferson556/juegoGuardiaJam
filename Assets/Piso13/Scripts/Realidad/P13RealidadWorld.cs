@@ -155,7 +155,7 @@ namespace Piso13.Realidad
                 l.transform.position = c.position + Vector3.down * .1f;
                 l.type = LightType.Point;
                 l.range = 8;
-                l.intensity = 1.25f;
+                l.intensity = .38f;
                 l.color = new Color(.55f, .72f, .8f);
                 Lights.Add(l);
             }
@@ -167,13 +167,14 @@ namespace Piso13.Realidad
                 l.transform.position = room.position + Vector3.up * 2;
                 l.type = LightType.Point;
                 l.range = 7;
-                l.intensity = 1.15f;
+                l.intensity = .32f;
                 l.color = new Color(.55f, .72f, .8f);
                 Lights.Add(l);
             }
 
+            RenderSettings.reflectionIntensity = .2f;
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(.16f, .17f, .20f);
+            RenderSettings.ambientLight = new Color(.025f, .032f, .045f);
             RenderSettings.fog = true;
             RenderSettings.fogColor = new Color(.015f, .022f, .03f);
             RenderSettings.fogMode = FogMode.Exponential;
@@ -195,7 +196,7 @@ namespace Piso13.Realidad
             foreach (var l in Lights.OrderBy(l => (l.transform.position - observer).sqrMagnitude).Select((l, i) => new { l, i }))
             {
                 l.l.enabled = l.i < budget;
-                l.l.intensity = (l.l.transform.position.x > 20 ? 1.15f : 1.25f) * multiplier * (1 + brightness);
+                l.l.intensity = (l.l.transform.position.x > 20 ? .32f : .38f) * multiplier * (1 + brightness);
             }
 
             if (OfficeDoor != null)
