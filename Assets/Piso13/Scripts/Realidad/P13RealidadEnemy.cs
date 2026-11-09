@@ -63,10 +63,12 @@ namespace Piso13.Realidad
         public float MaxBreathingVolume = 0.85f;
         public float MaxFootstepVolume = 0.75f;
 
-        private AudioSource breathingSource;
-        private AudioSource stepSource; // pisadas en bucle mientras camina
-        private AudioSource dragSource; // arrastre en bucle mientras camina
-        private bool walking = false;
+        [SerializeField] private AudioSource breathingSource;
+        [SerializeField] private AudioSource stepSource; // pisadas en bucle mientras camina
+        [SerializeField] private AudioSource dragSource; // arrastre en bucle mientras camina
+        [SerializeField] private Transform _spawnPoint;
+        private P13RealidadSceneBindings _scene;
+        bool walking = false;
         // El clip de pisadas empieza con un fundido de entrada: el bucle se salta esos segundos
         const float FeetLoopStart = 12f;
 
@@ -123,7 +125,12 @@ namespace Piso13.Realidad
 
         public void SetupCharacter()
         {
-            if (Root != null) return;
+            if (Root != null)
+            {
+                if (Anim == null) Anim = Root.GetComponentInChildren<Animation>(true);
+                SetupAudio();
+                return;
+            }
 
             var rootGo = new GameObject(modelName + "_Root");
             rootGo.transform.SetParent(transform, false);
@@ -218,11 +225,10 @@ namespace Piso13.Realidad
 
         public void ApplySpawnPosition()
         {
-            var marker = GameObject.Find("EnemySpawn");
-            if (marker != null && marker.transform != Root && marker.transform != Visual)
+            if (_spawnPoint != null)
             {
-                Position = marker.transform.position;
-                Yaw = marker.transform.eulerAngles.y;
+                Position = _spawnPoint.position;
+                Yaw = _spawnPoint.eulerAngles.y;
             }
             else
             {
@@ -230,6 +236,9 @@ namespace Piso13.Realidad
                 Yaw = defaultSpawnYaw;
             }
 
+            clock = 0f; confidence = 0f; Alert = 0f; Speed = 0f; SeesPlayer = false;
+            lastSeen = -999f; lastHeard = -999f; doorTimer = 0f; investigateWaitTimer = 0f;
+            DisableProximityCapture = false; ClearMapEvent(); currentAnimPlaying = "";
             location = 8;
             destination = 8;
             State = RealidadEnemyState.Dormant;
@@ -253,9 +262,19 @@ namespace Piso13.Realidad
             Publish();
         }
 
+        Vector3[] _patrolDestinations;
+        int[][] _patrolNeighbors;
+
         public void InitNavigation(P13RealidadWorld world)
         {
             if (world == null) return;
+            _scene = world.Scene;
+            if (_scene != null)
+            {
+                var nodes = _scene.OfKind(P13RealidadSpatialAuthoring.SpatialKind.Patrol).OrderBy(n => n.Id).ToArray();
+                _patrolDestinations = nodes.Select(n => n.transform.position).ToArray();
+                _patrolNeighbors = nodes.Select(n => n.Connections).ToArray();
+            }
             navigation = new P13RealidadNavigation(world);
             navigator = new P13EnemyNavigator(world, navigation);
             if (Game != null)
@@ -271,6 +290,7 @@ namespace Piso13.Realidad
 
         public void ReturnToSpawnPeaceful()
         {
+            var destinations = _patrolDestinations ?? P13RealidadEnemy.destinations;
             DisableProximityCapture = true;
             IsHunting = false;
             State = RealidadEnemyState.Retreating;
@@ -384,6 +404,8 @@ namespace Piso13.Realidad
 
         void PickNextDestination()
         {
+            var destinations = _patrolDestinations ?? P13RealidadEnemy.destinations;
+            var neighbors = _patrolNeighbors ?? P13RealidadEnemy.neighbors;
             if (navigator == null) return;
 
             if (HasActiveEvent && EventTimer > 0)
@@ -423,6 +445,7 @@ namespace Piso13.Realidad
 
         public void Tick(float dt)
         {
+            var destinations = _patrolDestinations ?? P13RealidadEnemy.destinations;
             clock += dt;
             UpdateAudio(dt);
             walking = false; // se vuelve a marcar abajo si se mueve en este tick
@@ -645,8 +668,9 @@ namespace Piso13.Realidad
                     memory = null;
                 }
 
-                bool office = Mathf.Abs(target.x) < 2.6f && Mathf.Abs(target.z) < 2.6f;
-                bool approachDoor = Game != null && Game.World != null && Game.World.DoorClosed && office && Position.z < -3.4f;
+                bool office = P13RealidadRules.Room(target) == 1;
+                bool outsideOffice = P13RealidadRules.Room(Position) != 1;
+                bool approachDoor = Game != null && Game.World != null && Game.World.DoorClosed && office && outsideOffice;
 
                 if (approachDoor)
                 {

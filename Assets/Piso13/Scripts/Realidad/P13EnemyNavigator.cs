@@ -60,8 +60,13 @@ namespace Piso13.Realidad
             hasGoal = false;
         }
 
+        int _pathRevision = -1;
+        bool _pathDoorClosed;
+
         void CalculatePath(Vector3 start, Vector3 goal)
         {
+            _pathRevision = world != null ? world.Revision : -1;
+            _pathDoorClosed = world != null && world.DoorClosed;
             route.Clear();
             routeIndex = 0;
 
@@ -115,6 +120,8 @@ namespace Piso13.Realidad
             newYaw = currentYaw;
 
             if (replanCooldown > 0f) replanCooldown -= dt;
+            if (world != null && hasGoal && (_pathRevision != world.Revision || _pathDoorClosed != world.DoorClosed))
+                CalculatePath(currentPos, currentGoal);
 
             if (!HasPath)
             {

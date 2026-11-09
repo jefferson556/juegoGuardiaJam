@@ -31,6 +31,8 @@ namespace Piso13.Realidad
 
         public static int Room(Vector3 p)
         {
+            var game = P13RealidadGame.Instance;
+            if (game != null && game.SceneBindings != null) return game.SceneBindings.Room(p);
             float z = -p.z;
             if (p.x > 20)
                 return 12;

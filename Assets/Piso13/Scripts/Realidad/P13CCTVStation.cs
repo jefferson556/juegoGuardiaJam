@@ -20,6 +20,7 @@ namespace Piso13.Realidad
         public P13RealidadGame Game;
 
         private BoxCollider triggerCollider;
+        [SerializeField] private bool _useSceneTransform;
 
         void Awake()
         {
@@ -28,7 +29,7 @@ namespace Piso13.Realidad
 
         public void SetupCollider()
         {
-            transform.position = DeskCoordinates;
+            if (!_useSceneTransform) transform.position = DeskCoordinates;
 
             triggerCollider = GetComponent<BoxCollider>();
             if (triggerCollider == null)

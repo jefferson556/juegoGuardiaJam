@@ -15,10 +15,23 @@ namespace Piso13.Realidad
         public readonly List<Light> Lights = new List<Light>();
         public readonly List<Transform> Windows = new List<Transform>();
         readonly List<Tuple<Material, Color, int>> emitters = new List<Tuple<Material, Color, int>>();
+        public P13RealidadSceneBindings Scene { get; private set; }
+        readonly Dictionary<Light, float> baseIntensities = new Dictionary<Light, float>();
 
         public P13RealidadWorld(WorldData d)
         {
             Data = d;
+        }
+
+        public P13RealidadWorld(P13RealidadSceneBindings scene)
+        {
+            Scene = scene;
+            Data = scene.CreateData();
+            Root = scene.WorldRoot;
+            OfficeDoor = scene.OfficeDoor;
+            Lights.AddRange(scene.Lights);
+            Windows.AddRange(scene.Windows);
+            foreach (var light in Lights) baseIntensities[light] = light.intensity;
         }
 
         public IEnumerable<Obstacle> Obstacles(bool floor12, bool dynamic = true)
@@ -33,9 +46,16 @@ namespace Piso13.Realidad
                     yield return o;
         }
 
+        public bool IsFloor12(Vector3 p) => Scene != null ? Scene.IsFloor12(p) : p.x > 20;
+        public Bounds NavigationBounds(bool floor12)
+        {
+            if (Scene != null) return Scene.FloorBounds(floor12).WorldBounds;
+            return floor12 ? new Bounds(new Vector3(30,1.7f,8.3f),new Vector3(12,3.4f,31.2f)) : new Bounds(new Vector3(0,1.7f,0),new Vector3(15.4f,3.4f,15.4f));
+        }
+
         public bool Clear(Vector3 a, Vector3 b, float pad = 0, bool walking = false)
         {
-            if ((a.x > 20) != (b.x > 20))
+            if (IsFloor12(a) != IsFloor12(b))
                 return false;
             if (walking)
             {
@@ -43,7 +63,7 @@ namespace Piso13.Realidad
                 b.y = .2f;
             }
 
-            foreach (var o in Obstacles(a.x > 20))
+            foreach (var o in Obstacles(IsFloor12(a)))
                 if (o.Intersects(a, b, pad))
                     return false;
             return true;
@@ -51,14 +71,19 @@ namespace Piso13.Realidad
 
         public bool CanStand(Vector3 p, float radius = .34f, bool dynamic = true)
         {
-            if (p.x > 20)
+            bool floor12 = IsFloor12(p);
+            if (Scene != null)
+            {
+                if (!Scene.FloorBounds(floor12).ContainsXZ(p, floor12 ? radius : 0)) return false;
+            }
+            else if (floor12)
             {
                 if (p.x <= 24 + radius || p.x >= 36 - radius || p.z >= 23.9f - radius || p.z <= -7.3f + radius)
                     return false;
             }
             else if (Mathf.Abs(p.x) >= 7.7f || Mathf.Abs(p.z) >= 7.7f)
                 return false;
-            foreach (var o in Obstacles(p.x > 20, dynamic))
+            foreach (var o in Obstacles(floor12, dynamic))
                 if (o.Overlaps(p, radius))
                     return false;
             return true;
@@ -196,11 +221,20 @@ namespace Piso13.Realidad
             foreach (var l in Lights.OrderBy(l => (l.transform.position - observer).sqrMagnitude).Select((l, i) => new { l, i }))
             {
                 l.l.enabled = l.i < budget;
-                l.l.intensity = (l.l.transform.position.x > 20 ? .32f : .38f) * multiplier * (1 + brightness);
+                // Escena editable: conservar su base; procedural: usar el ajuste nocturno del repo.
+                float initial = baseIntensities.TryGetValue(l.l, out var value) ? value : (l.l.transform.position.x > 20 ? .32f : .38f);
+                l.l.intensity = initial * multiplier * (1 + brightness);
             }
 
             if (OfficeDoor != null)
-                OfficeDoor.localPosition = new Vector3(DoorClosed ? 0 : 1.85f, 1.35f, -3);
+            {
+                if (Scene != null)
+                {
+                    var endpoint = DoorClosed ? Scene.DoorClosed : Scene.DoorOpen;
+                    OfficeDoor.SetPositionAndRotation(endpoint.position, endpoint.rotation);
+                }
+                else OfficeDoor.localPosition = new Vector3(DoorClosed ? 0 : 1.85f, 1.35f, -3);
+            }
         }
     }
 
@@ -213,6 +247,7 @@ namespace Piso13.Realidad
         int width, height, revision = -1;
         bool closed;
         bool[] grid;
+        Vector3 gridOrigin;
 
         public P13RealidadNavigation(P13RealidadWorld world)
         {
@@ -221,19 +256,21 @@ namespace Piso13.Realidad
 
         Vector3 Point(int i)
         {
-            return new Vector3(i % width * spacing + (floor12 ? 24 : -7.6f), .8f, i / width * spacing + (floor12 ? -7.4f : -7.6f));
+            return new Vector3(i % width * spacing + gridOrigin.x, .8f, i / width * spacing + gridOrigin.z);
         }
 
         void Select(Vector3 p)
         {
-            bool f = p.x > 20;
+            bool f = world.IsFloor12(p);
             if (grid != null && f == floor12 && closed == world.DoorClosed && revision == world.Revision)
                 return;
             floor12 = f;
             closed = world.DoorClosed;
             revision = world.Revision;
-            width = f ? 61 : 77;
-            height = f ? 158 : 77;
+            var bounds = world.NavigationBounds(f);
+            gridOrigin = bounds.min + new Vector3(.1f, 0, .1f);
+            width = Mathf.Max(1, Mathf.RoundToInt((bounds.size.x - .2f) / spacing) + 1);
+            height = Mathf.Max(1, Mathf.RoundToInt((bounds.size.z - .2f) / spacing) + 1);
             grid = new bool[width * height];
             for (int i = 0; i < grid.Length; i++)
                 grid[i] = world.CanStand(Point(i), Radius + .02f) && world.Clear(Point(i), Point(i), Radius + .01f, true);
@@ -297,7 +334,7 @@ namespace Piso13.Realidad
         public List<Vector3> Path(Vector3 start, Vector3 goal)
         {
             var empty = new List<Vector3>();
-            if ((start.x > 20) != (goal.x > 20))
+            if (world.IsFloor12(start) != world.IsFloor12(goal))
                 return empty;
             goal = Safe(goal);
             start = Safe(start);

@@ -12,6 +12,9 @@ namespace Piso13.Realidad
     public sealed class P13RealidadGame : MonoBehaviour
     {
         public static P13RealidadGame Instance;
+        [Header("Autoría de escena")]
+        [SerializeField] private P13RealidadSceneBindings _sceneBindings;
+        public P13RealidadSceneBindings SceneBindings => _sceneBindings;
 
         public enum GamePhase
         {
@@ -131,16 +134,17 @@ namespace Piso13.Realidad
             }
             Instance = this;
 
-            Audio = gameObject.AddComponent<P13RealidadAudio>();
+            if (_sceneBindings == null) _sceneBindings = GetComponent<P13RealidadSceneBindings>();
+            Audio = GetComponent<P13RealidadAudio>() ?? gameObject.AddComponent<P13RealidadAudio>();
             var settings = new P13RealidadSettings();
             Audio.Setup(settings);
             Audio.SetGameplay(true);
 
-            UI = gameObject.AddComponent<P13RealidadUI>();
+            UI = GetComponent<P13RealidadUI>() ?? gameObject.AddComponent<P13RealidadUI>();
             UI.Game = this;
 
             // Pausa y pantalla de fin, con el mismo estilo que los menús del resto del juego
-            Menus = gameObject.AddComponent<P13RealidadMenus>();
+            Menus = GetComponent<P13RealidadMenus>() ?? gameObject.AddComponent<P13RealidadMenus>();
             Menus.Game = this;
 
             StartGameSession();
@@ -161,11 +165,19 @@ namespace Piso13.Realidad
                 UI.Game = this;
             }
 
-            CleanupSceneObjects();
-            BuildWorld();
-            SetupPlayer();
-            SetupEnemy();
-            SetupAnomalies();
+            if (_sceneBindings != null)
+            {
+                if (!InitializeEditableScene()) return;
+            }
+            else
+            {
+                // Compatibilidad con escenas procedurales aún no convertidas.
+                CleanupSceneObjects();
+                BuildWorld();
+                SetupPlayer();
+                SetupEnemy();
+                SetupAnomalies();
+            }
 
             Phase = GamePhase.Playing;
             GameTime = 0f;
@@ -194,6 +206,59 @@ namespace Piso13.Realidad
 
             // Mensaje al despertar frente a la cama con duración exacta de 3 segundos
             ShowNotification("Estás despierto, hora de empezar tu turno.", 3.0f);
+        }
+
+        bool InitializeEditableScene()
+        {
+            var errors = _sceneBindings.ValidateScene();
+            if (errors.Count > 0)
+            {
+                Debug.LogError("Escena editable inválida: " + string.Join("; ", errors), this);
+                enabled = false;
+                return false;
+            }
+            StopAllCoroutines();
+            _sceneBindings.CaptureInitialState();
+            foreach (var behaviour in _sceneBindings.WorldRoot.GetComponentsInChildren<MonoBehaviour>(true))
+                behaviour.StopAllCoroutines();
+            _sceneBindings.RestoreInitialState();
+            if (World == null) World = new P13RealidadWorld(_sceneBindings);
+            Data = World.Data;
+            World.DoorClosed = false; World.Revision++;
+            View = _sceneBindings.View; flashlight = _sceneBindings.Flashlight; hand = _sceneBindings.Hand;
+            PlayerPosition = _sceneBindings.PlayerSpawn.position;
+            Yaw = _sceneBindings.PlayerSpawn.eulerAngles.y; Pitch = 0f; EyeHeight = 1.65f;
+            Flashlight = true; Crouched = false; IsSprinting = false;
+            Enemy = _sceneBindings.Enemy; Enemy.Game = this;
+            Enemy.SetupCharacter(); Enemy.ApplySpawnPosition(); Enemy.InitNavigation(World);
+            Enemy.Pause(false); Enemy.gameObject.SetActive(false);
+            VintagePhone = _sceneBindings.Phone; VintagePhone.Game = this; VintagePhone.ResetSession();
+            CoffeeCup = _sceneBindings.Coffee; CoffeeCup.ResetSession();
+            PersonaAnomaly = _sceneBindings.Persona; PersonaAnomaly.ResetSession();
+            HumanMaskAnomaly = _sceneBindings.Mask; HumanMaskAnomaly.Game = this;
+            HumanMaskAnomaly.RoomSpawnPoints = new List<RoomMaskSpawnPoint>();
+            foreach (var marker in _sceneBindings.OfKind(P13RealidadSpatialAuthoring.SpatialKind.MaskSpawn))
+                HumanMaskAnomaly.RoomSpawnPoints.Add(new RoomMaskSpawnPoint(marker.Id, marker.Label, marker.transform.position, marker.transform.eulerAngles, marker.gameObject.activeSelf));
+            HumanMaskAnomaly.ResetSession();
+            CCTVStation = _sceneBindings.Station; CCTVStation.Game = this; CCTVStation.SetupCollider();
+            foreach (var anomaly in World.Root.GetComponentsInChildren<P13Anomaly>(true))
+            {
+                anomaly.IsReported = false; anomaly.IsActive = true;
+            }
+            _sceneBindings.Clock.gameObject.SetActive(false);
+            _sceneBindings.Bed.SetActive(true); _sceneBindings.SleepingGuard.SetActive(false);
+            if (endingZombieAudio != null) endingZombieAudio.Stop();
+            EndingSequenceTriggered = false; EndingPhoneRinging = false; IsRealityFrozen = false;
+            isEndingCinematicActive = false; endingPhoneTimer = 5f; IsPlayerMovementFrozen = false;
+            headPhase = 0f; noiseDistance = 0f; cctvLook = Vector2.zero;
+            Audio.ResetSession(); Time.timeScale = 1f; AudioListener.pause = false;
+            UpdateCameraView(0f);
+            return true;
+        }
+
+        void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
         }
 
         static void SafeDestroy(UnityEngine.Object obj)
@@ -1155,16 +1220,17 @@ namespace Piso13.Realidad
 
         void InteractDoor()
         {
-            float distToDoor = Vector3.Distance(PlayerPosition, P13RealidadRules.RK(0, 0.8f, 2.35f));
-            if (distToDoor < 2.5f)
+            var doorPoint = _sceneBindings != null ? _sceneBindings.DoorInteraction.position : P13RealidadRules.RK(0, 0.8f, 2.35f);
+            float distToDoor = Vector3.Distance(PlayerPosition, doorPoint);
+            if (World != null && distToDoor < 2.5f)
             {
                 World.DoorClosed = !World.DoorClosed;
                 World.Revision++;
-                Audio.Spatial(World.DoorClosed ? "P13_Door_Latch" : "P13_Door_Open", P13RealidadRules.RK(0, 1.2f, 3f), 0.5f);
+                Audio.Spatial(World.DoorClosed ? "P13_Door_Latch" : "P13_Door_Open", doorPoint, 0.5f);
                 ShowNotification(World.DoorClosed ? "Puerta cerrada." : "Puerta abierta.");
                 if (Enemy != null)
                 {
-                    Enemy.AlertNoise(P13RealidadRules.RK(0, 0.8f, 2.35f), 0.6f);
+                    Enemy.AlertNoise(doorPoint, 0.6f);
                 }
             }
         }
@@ -1537,7 +1603,8 @@ namespace Piso13.Realidad
             if (CCTV && Data != null && Data.cameras != null && CameraIndex < Data.cameras.Length)
             {
                 var cam = Data.cameras[CameraIndex];
-                Vector3 target = (CameraIndex == 4 && isEndingCinematicActive) ? new Vector3(-6.712f, 0.35f, -6.003f) : cam.target;
+                var endingTarget = _sceneBindings != null ? _sceneBindings.EndingTarget.position : new Vector3(-6.712f, 0.35f, -6.003f);
+                Vector3 target = (CameraIndex == 4 && isEndingCinematicActive) ? endingTarget : cam.target;
                 View.transform.position = cam.position;
                 View.transform.rotation = Quaternion.LookRotation(target - cam.position) * Quaternion.Euler(-cctvLook.y, cctvLook.x, 0);
                 if (hand) hand.gameObject.SetActive(false);
@@ -1654,6 +1721,16 @@ namespace Piso13.Realidad
 
         public void ReplaceBedWithSleepingGuard()
         {
+            if (_sceneBindings != null)
+            {
+                var bed = _sceneBindings.Bed.transform;
+                var guard = _sceneBindings.SleepingGuard.transform;
+                guard.SetPositionAndRotation(bed.position, bed.rotation);
+                guard.localScale = bed.localScale;
+                _sceneBindings.Bed.SetActive(false);
+                _sceneBindings.SleepingGuard.SetActive(true);
+                return;
+            }
             var oldBed = GameObject.Find("Cama_Sola");
             Vector3 pos = new Vector3(-6.712f, -0.014f, -6.003f);
             Quaternion rot = Quaternion.Euler(0f, 0f, 0f);
@@ -1754,6 +1831,11 @@ namespace Piso13.Realidad
 
         public void SpawnClockPentagramAnomaly()
         {
+            if (_sceneBindings != null)
+            {
+                _sceneBindings.Clock.gameObject.SetActive(true);
+                return;
+            }
             try
             {
                 if (World != null && World.Root != null)
@@ -1816,6 +1898,13 @@ namespace Piso13.Realidad
 
         public void RestartSession()
         {
+            if (_sceneBindings != null)
+            {
+                if (Menus != null) Menus.SetPaused(false);
+                enabled = true;
+                StartGameSession();
+                return;
+            }
             CursorLock(false);
             if (Audio != null)
             {
@@ -1845,6 +1934,7 @@ namespace Piso13.Realidad
 #if UNITY_EDITOR
         void OnValidate()
         {
+            if (_sceneBindings != null) return;
             if (VintagePhone != null)
             {
                 VintagePhone.transform.position = PhonePosition;

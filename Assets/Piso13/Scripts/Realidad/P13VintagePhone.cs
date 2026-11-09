@@ -25,8 +25,16 @@ namespace Piso13.Realidad
         public AudioClip HangupClip;
         public AudioClip VoiceElenaFinalClip;
 
-        private AudioSource ringSource;
-        private AudioSource callSource;
+        [SerializeField] private AudioSource ringSource;
+        [SerializeField] private AudioSource callSource;
+
+        public void ResetSession()
+        {
+            StopAllCoroutines();
+            SetupAudioSources();
+            hasAnswered = false; isRinging = false; isCallInProgress = false; isEndingCall = false; IsReported = false;
+            ringSource.Stop(); callSource.Stop();
+        }
 
         private bool hasAnswered = false;
         private bool isRinging = false;

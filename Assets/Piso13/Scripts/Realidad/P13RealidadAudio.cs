@@ -22,6 +22,7 @@ namespace Piso13.Realidad
         public void Setup(P13RealidadSettings s)
         {
             settings = s;
+            if (menu != null) return;
             menu = Source("Música", false);
             menu.clip = Clip("P13_Menu_Ulrich");
             menu.loop = true;
@@ -56,11 +57,20 @@ namespace Piso13.Realidad
                 spatial.Add(Source("Espacial" + i, true));
         }
 
+        public void ResetSession()
+        {
+            foreach (var source in GetComponentsInChildren<AudioSource>(true)) source.Stop();
+            spatialIndex = 0; thunderTimer = 25f; menuWanted = false; menuVolume = 0f;
+            SetGameplay(true);
+        }
+
         AudioSource Source(string name, bool space)
         {
-            var o = new GameObject("Audio_" + name);
-            o.transform.SetParent(transform);
-            var a = o.AddComponent<AudioSource>();
+            var existing = transform.Find("Audio_" + name);
+            var o = existing != null ? existing.gameObject : new GameObject("Audio_" + name);
+            if (existing == null) o.transform.SetParent(transform, false);
+            var a = o.GetComponent<AudioSource>();
+            if (a == null) a = o.AddComponent<AudioSource>();
             a.playOnAwake = false;
             string channel = name == "Música" ? "Music" : name == "Diálogo" ? "Voices" : name.StartsWith("Lluvia") || name == "Ventilación" ? "Ambience" : "Effects";
             Turno0313.DemoSettingsRuntime.Route(a, channel);

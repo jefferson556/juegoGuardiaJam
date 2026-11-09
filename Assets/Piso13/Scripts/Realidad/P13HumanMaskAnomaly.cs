@@ -84,6 +84,13 @@ namespace Piso13.Realidad
 
         void Awake()
         {
+            ResetSession();
+        }
+
+        public void ResetSession()
+        {
+            StopAllCoroutines();
+            CurrentSpawnRoomId = -1;
             cachedRenderers = GetComponentsInChildren<Renderer>(true);
             cachedColliders = GetComponentsInChildren<Collider>(true);
             HasSpawned = false;
@@ -120,7 +127,7 @@ namespace Piso13.Realidad
 
         public void InitDefaultSpawnPoints()
         {
-            if (RoomSpawnPoints != null && RoomSpawnPoints.Count >= 9) return;
+            if (RoomSpawnPoints != null && RoomSpawnPoints.Count > 0) return;
 
             RoomSpawnPoints = new List<RoomMaskSpawnPoint>
             {

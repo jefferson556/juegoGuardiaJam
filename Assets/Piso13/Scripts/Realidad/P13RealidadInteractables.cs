@@ -12,7 +12,7 @@ namespace Piso13.Realidad
     /// - Autorrellenado tras temporizador con sonido freesound_community-glug-glug-37131.
     /// - Reportable como anomalía con tecla [R].
     /// </summary>
-    public class P13CoffeeCup : MonoBehaviour
+    public partial class P13CoffeeCup : MonoBehaviour
     {
         [Header("Audio")]
         public AudioClip drinkClip;
@@ -24,9 +24,9 @@ namespace Piso13.Realidad
         public float refillDelay = 10f;
         public float maxInteractionDistance = 2.0f;
 
-        Transform liquid;
-        Material liquidMaterial;
-        AudioSource audioSource;
+        [SerializeField] Transform liquid;
+        [SerializeField] Material liquidMaterial;
+        [SerializeField] AudioSource audioSource;
         bool hasCoffee = true;
         bool isAnimating = false;
 
@@ -88,6 +88,20 @@ namespace Piso13.Realidad
             r.sharedMaterial = liquidMaterial;
 
             liquid = disc.transform;
+        }
+
+        public void ResetSession()
+        {
+            StopAllCoroutines();
+            InitLiquid();
+            hasCoffee = true;
+            isAnimating = false;
+            if (audioSource != null) audioSource.Stop();
+            if (liquid != null)
+            {
+                liquid.localPosition = new Vector3(0f, fullHeight, 0f);
+                liquid.localScale = new Vector3(0.38f, 0.015f, 0.38f);
+            }
         }
 
         public string GetPrompt()
@@ -186,7 +200,7 @@ namespace Piso13.Realidad
     /// Componente genérico para objetos reportables del mapa (ej. Cafetera).
     /// Permite configurar penalización si se reporta como falsa anomalía.
     /// </summary>
-    public class P13ReportableProp : MonoBehaviour
+    public partial class P13ReportableProp : MonoBehaviour
     {
         public string PropId = "Prop";
         public bool IsFakeAnomaly = true;
@@ -233,7 +247,7 @@ namespace Piso13.Realidad
     /// - No se puede reportar desde las cámaras (solo hace que aparezca); el jugador debe acercarse en persona para reportarla con [R].
     /// - Oscila continuamente 180 grados de lado a lado sobre el eje Y.
     /// </summary>
-    public class P13PersonaEleganteAnomaly : MonoBehaviour
+    public partial class P13PersonaEleganteAnomaly : MonoBehaviour
     {
         public Quaternion BaseRotation;
         public bool HasSpawned = false;
@@ -241,6 +255,11 @@ namespace Piso13.Realidad
         public float MaxDistance = 2.5f;
 
         void Awake()
+        {
+            BaseRotation = transform.localRotation;
+        }
+
+        public void ResetSession()
         {
             BaseRotation = transform.localRotation;
             HasSpawned = false;
